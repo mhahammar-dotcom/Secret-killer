@@ -1,0 +1,93 @@
+name: Build Secret Killer APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare Android project
+        run: |
+          mkdir -p app/src/main/java/com/secretkiller/app
+          mkdir -p app/src/main/res/values
+
+          mv MainActivity.java app/src/main/java/com/secretkiller/app/MainActivity.java
+          mv Story.java app/src/main/java/com/secretkiller/app/Story.java
+          mv Player.java app/src/main/java/com/secretkiller/app/Player.java
+          mv Clue.java app/src/main/java/com/secretkiller/app/Clue.java
+          mv GameManager.java app/src/main/java/com/secretkiller/app/GameManager.java
+          mv AndroidManifest.xml app/src/main/AndroidManifest.xml
+          mv styles.xml app/src/main/res/values/styles.xml
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.secretkiller.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.secretkiller.app'
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 2
+                  versionName '0.2.0'
+              }
+          }
+          EOF
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "SecretKiller"
+          include(":app")
+          EOF
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build APK
+        run: gradle :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecretKiller-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
