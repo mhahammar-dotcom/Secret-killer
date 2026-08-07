@@ -73,24 +73,42 @@ public class MainActivity extends Activity {
     }
 
     Button btn(String s, boolean primary){
-        Button b=new Button(this);
-        b.setText(s); b.setTextSize(16); b.setAllCaps(false);
-        b.setTextColor(primary?Color.BLACK:GOLD);
-        b.setBackgroundColor(primary?GOLD:Color.rgb(40,34,24));
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,62);
-        p.setMargins(0,6,0,6); b.setLayoutParams(p);
-        return b;
+    Button b=new Button(this);
+
+    b.setText(s);
+    b.setTextSize(18);
+    b.setAllCaps(false);
+    b.setTextColor(primary ? Color.BLACK : GOLD);
+
+    b.setGravity(Gravity.CENTER);
+    b.setTextDirection(View.TEXT_DIRECTION_RTL);
+    b.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
+
+    b.setBackgroundColor(
+        primary ? GOLD : Color.rgb(40,34,24)
+    );
+
+    LinearLayout.LayoutParams p=
+        new LinearLayout.LayoutParams(-1,70);
+
+    p.setMargins(0,7,0,7);
+    b.setLayoutParams(p);
+
+    return b;
     }
 
     void base(){
-        ScrollView sv=new ScrollView(this);
-        root=new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(22,22,22,22);
-        root.setBackgroundColor(BG);
-        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        sv.addView(root);
-        setContentView(sv);
+    ScrollView sv=new ScrollView(this);
+    sv.setFillViewport(true);
+
+    root=new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setPadding(22,22,22,22);
+    root.setBackgroundColor(BG);
+    root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+    sv.addView(root,new ScrollView.LayoutParams(-1,-1));
+    setContentView(sv);
     }
 
     // Adds a consistent home button to every story screen.
@@ -122,42 +140,62 @@ public class MainActivity extends Activity {
     }
 
     void home(){
-        atHome=true;
-        base();
+    atHome=true;
+    base();
 
-        // Center the home content vertically.
-        LinearLayout center=new LinearLayout(this);
-        center.setOrientation(LinearLayout.VERTICAL);
-        center.setGravity(Gravity.CENTER);
-        center.setPadding(10,0,10,0);
+    LinearLayout center=new LinearLayout(this);
+    center.setOrientation(LinearLayout.VERTICAL);
+    center.setGravity(Gravity.CENTER);
+    center.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        Space top=new Space(this);
-        center.addView(top,new LinearLayout.LayoutParams(1,0,1));
+    Space top=new Space(this);
+    center.addView(top,new LinearLayout.LayoutParams(1,0,1));
 
-        TextView logo=text("SECRET KILLER",40,GOLD,true);
-        logo.setGravity(Gravity.CENTER);
-        center.addView(logo,new LinearLayout.LayoutParams(-1,-2));
+    TextView logo=text(
+        "SECRET KILLER",
+        34,
+        GOLD,
+        true
+    );
+    logo.setGravity(Gravity.CENTER);
+    center.addView(
+        logo,
+        new LinearLayout.LayoutParams(-1,-2)
+    );
 
-        TextView sub=text("كل قصة تخفي سرًا",20,WHITE,false);
-        sub.setGravity(Gravity.CENTER);
-        sub.setTextDirection(View.TEXT_DIRECTION_RTL);
-        center.addView(sub,new LinearLayout.LayoutParams(-1,-2));
+    TextView sub=text(
+        "كل قصة تخفي سرًا",
+        21,
+        WHITE,
+        false
+    );
+    sub.setGravity(Gravity.CENTER);
+    sub.setTextDirection(View.TEXT_DIRECTION_RTL);
 
-        Space gap=new Space(this);
-        center.addView(gap,new LinearLayout.LayoutParams(1,24));
+    LinearLayout.LayoutParams subParams=
+        new LinearLayout.LayoutParams(-1,-2);
+    subParams.setMargins(0,10,0,25);
 
-        Button start=btn("ابدأ اللعبة",true);
-        start.setOnClickListener(v->{reset(); story();});
-        center.addView(start);
+    center.addView(sub,subParams);
 
-        Button how=btn("طريقة اللعب",false);
-        how.setOnClickListener(v->how());
-        center.addView(how);
+    Button start=btn("ابدأ اللعبة",true);
+    start.setOnClickListener(v->{
+        reset();
+        story();
+    });
+    center.addView(start);
 
-        Space bottom=new Space(this);
-        center.addView(bottom,new LinearLayout.LayoutParams(1,0,1));
+    Button how=btn("طريقة اللعب",false);
+    how.setOnClickListener(v->how());
+    center.addView(how);
 
-        root.addView(center,new LinearLayout.LayoutParams(-1,0,1));
+    Space bottom=new Space(this);
+    center.addView(bottom,new LinearLayout.LayoutParams(1,0,1));
+
+    root.addView(
+        center,
+        new LinearLayout.LayoutParams(-1,0,1)
+    );
     }
 
     void showExitStoryDialog(){
