@@ -10,12 +10,14 @@ public final class Story {
     private final String[] innocentRoles;
     public final CustomCharacter[] customCharacters;
     public final String customEnding;
+    public final InvestigationData investigation;
+    public final StoryIntroduction introduction;
 
     public Story(String id, String title, String description, int min, int max, String[] innocentRoles, Clue[] clues, String[] hints) {
         this.id = id; this.title = title; this.description = description; this.minPlayers = min; this.maxPlayers = max;
-        this.innocentRoles = innocentRoles; this.clues = clues; this.wrongVoteHints = hints; this.customCharacters=null; this.customEnding=null;
+        this.innocentRoles = innocentRoles; this.clues = clues; this.wrongVoteHints = hints; this.customCharacters=null; this.customEnding=null; this.investigation=InvestigationData.standard(); this.introduction=new StoryIntroduction(title,description,"حدثت جريمة وأصبحت الحقيقة موزعة بين الحاضرين.","قد يهرب الفاعل أو يُتهم بريء.","اكشفوا الحقيقة قبل فوات الأوان.");
     }
-    private Story(String id,String title,String description,CustomCharacter[] characters,Clue[] clues,String ending){this.id=id;this.title=title;this.description=description;this.minPlayers=characters.length;this.maxPlayers=characters.length;this.innocentRoles=new String[0];this.clues=clues;this.wrongVoteHints=new String[]{"راجعوا الأدلة بعناية.","لا تتسرعوا في الحكم.","اسألوا عن التناقضات."};this.customCharacters=characters;this.customEnding=ending;}
+    private Story(String id,String title,String description,CustomCharacter[] characters,Clue[] clues,String ending){this.id=id;this.title=title;this.description=description;this.minPlayers=characters.length;this.maxPlayers=characters.length;this.innocentRoles=new String[0];this.clues=clues;this.wrongVoteHints=new String[]{"راجعوا الأدلة بعناية.","لا تتسرعوا في الحكم.","اسألوا عن التناقضات."};this.customCharacters=characters;this.customEnding=ending;this.investigation=InvestigationData.standard();}
     public static Story custom(String id,String title,String description,CustomCharacter[] characters,Clue[] clues,String ending){return new Story(id,title,description,characters,clues,ending);}
     public boolean isCustom(){return customCharacters!=null;}
 

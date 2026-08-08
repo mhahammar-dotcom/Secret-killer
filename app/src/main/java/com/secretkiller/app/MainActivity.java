@@ -37,6 +37,7 @@ public final class MainActivity extends Activity {
     private final ArrayList<CustomCharacter> customCards = new ArrayList<>();
     private final ArrayList<String> customClues = new ArrayList<>();
     private String customTitle, customDescription; private int customPlayers, requestedGuilty;
+    private int detectiveActionRound=-1;
 
     @Override public void onCreate(Bundle state) { super.onCreate(state); home(); }
     @Override public void onBackPressed() { if (atHome) exitAppDialog(); else exitStoryDialog(); }
@@ -125,9 +126,11 @@ public final class MainActivity extends Activity {
         ArrayList<Story> saved=CustomStoryStore.load(this); if(!saved.isEmpty()){addTitle("قصصي الخاصة");for(Story story:saved){addPanel("✦ "+story.title+"\n\n"+story.description);Button play=button("ابدأ هذه القصة",false);play.setOnClickListener(v->playerSetup(story));root.addView(play);}}
         for (Story story : Story.catalog()) {
             addPanel("🎭 " + story.title + "\n\n" + story.description + "\n\n" + f(R.string.players_range, story.minPlayers, story.maxPlayers));
-            Button choose = button(getString(R.string.choose_this_story), true); choose.setOnClickListener(v -> playerSetup(story)); root.addView(choose);
+            Button choose = button(getString(R.string.choose_this_story), true); choose.setOnClickListener(v -> storyIntroduction(story)); root.addView(choose);
         }
     }
+
+    private void storyIntroduction(Story story){atHome=false;base();navigation();addTitle("مقدمة القصة");addPanel(story.introduction.display());Button next=button("إعداد اللاعبين",true);next.setOnClickListener(v->playerSetup(story));root.addView(next);}
 
     private EditText field(String hint, boolean multi) { EditText e=new EditText(this);e.setHint(hint);e.setTextColor(color(R.color.text_primary));e.setHintTextColor(color(R.color.text_muted));e.setTextSize(17);e.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);e.setTextLocale(arabic);e.setGravity(Gravity.CENTER);e.setPadding(dp(16),dp(8),dp(16),dp(8));e.setSingleLine(!multi);if(multi)e.setMinLines(3);GradientDrawable bg=new GradientDrawable();bg.setColor(color(R.color.surface_input));bg.setCornerRadius(dp(12));bg.setStroke(dp(1),color(R.color.input_stroke));e.setBackground(bg);root.addView(e,margins(-1,multi?dp(100):dp(52),0,4,0,4));return e; }
     private boolean missing(EditText... fields){for(EditText e:fields)if(e.getText().toString().trim().isEmpty())return true;return false;}
@@ -178,10 +181,13 @@ public final class MainActivity extends Activity {
     private void rolePass(int index) { atHome = false; base(); navigation(); addTitle(getString(R.string.secret_distribution)); Player player = game.players.get(index); addPanel(f(R.string.pass_phone, name(player.name))); Button reveal = button(getString(R.string.reveal_my_role), true); reveal.setOnClickListener(v -> roleReveal(index)); root.addView(reveal); }
     private void roleReveal(int index) {
         atHome = false; base(); navigation(); addTitle(getString(R.string.secret_role)); Player player = game.players.get(index);
-        root.addView(text(player.role, 28, player.guilty ? color(R.color.red) : color(R.color.green), true)); addPanel(f(R.string.your_secret, player.secret)); addPanel(f(R.string.your_knowledge, player.knowledge)); addPanel(f(R.string.your_statement, player.statement));
+        root.addView(text(player.role, 28, player.guilty ? color(R.color.red) : color(R.color.green), true)); addPanel(f(R.string.your_secret, player.secret)); addPanel(f(R.string.your_knowledge, player.knowledge)); addPanel(f(R.string.your_statement, player.statement)); if(player.detective)addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة."); if(player.guilty)addPanel("هدفك السري\n\n"+player.killerObjective);
         Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else startRound(); }); root.addView(next);
     }
     private void startRound() { Clue clue = game.startNextRound(); atHome = false; base(); navigation(); addTitle(f(R.string.round, game.round)); addPanel(f(R.string.discussion, clue.text)); Button vote = button(getString(R.string.start_voting), true); vote.setOnClickListener(v -> beginVote()); root.addView(vote); }
+    private void investigation(){Player detective=game.detective();if(detective==null){notice("لا يوجد محقق نشط في هذه الجولة.");return;}if(detectiveActionRound==game.round){notice("استخدم المحقق إجراءه لهذه الجولة بالفعل.");return;}atHome=false;base();navigation();addTitle("مرحلة التحقيق");addPanel("مرر الهاتف إلى: "+name(detective.name)+"\n\nاختر إجراء تحقيق واحدًا.");for(InvestigationData.Action action:game.story.investigation.actions){Button b=button(action.label,false);b.setOnClickListener(v->investigationResult(action));root.addView(b);}}
+    private void investigationResult(InvestigationData.Action action){detectiveActionRound=game.round;game.investigationActionsUsed.add(action.id);atHome=false;base();navigation();addTitle("نتيجة تحقيق خاصة");addPanel(action.result);for(String info:game.story.investigation.privateInformation)addPanel("معلومة خاصة\n\n"+info);String conditional=game.conditionalClueFor(action.id);if(!conditional.isEmpty())addPanel(conditional);Button back=button("العودة إلى الجولة",true);back.setOnClickListener(v->showCurrentRound());root.addView(back);}
+    private void showCurrentRound(){atHome=false;base();navigation();addTitle(f(R.string.round,game.round));addPanel("عاد المحقق إلى النقاش. يمكنكم الآن التصويت.");Button vote=button(getString(R.string.start_voting),true);vote.setOnClickListener(v->beginVote());root.addView(vote);}
     private void beginVote() { votes.clear(); voteTurn = 0; voteNext(); }
     private void voteNext() {
         atHome = false; base(); navigation(); addTitle(getString(R.string.voting));
