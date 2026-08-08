@@ -1,0 +1,11 @@
+<resources>
+    <color name="background">#09080C</color>
+    <color name="surface">#17151D</color>
+    <color name="surface_input">#121117</color>
+    <color name="gold">#D6A84F</color>
+    <color name="text_primary">#F7F1E5</color>
+    <color name="text_muted">#BEB9C3</color>
+    <color name="red">#D45B63</color>
+    <color name="green">#68B58B</color>
+    <color name="input_stroke">#46424C</color>
+</resources>
