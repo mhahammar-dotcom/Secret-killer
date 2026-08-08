@@ -119,34 +119,60 @@ public class MainActivity extends Activity {
         }
     }
 
+    GradientDrawable createPlayerFieldBackground(){
+        GradientDrawable bg=new GradientDrawable();
+        bg.setColor(Color.rgb(18,17,23));
+        bg.setCornerRadius(12f);
+        bg.setStroke(2,Color.rgb(70,66,76));
+        return bg;
+    }
+
     void playerSetup(Story story){
         atHome=false; base(); navigationBar(); title("إعداد اللاعبين");
         panel("القصة: "+story.title+"\n\nاختروا عدد اللاعبين ثم اكتبوا الأسماء.");
 
+        // Player-count selector: large, centered and easy to tap.
         Spinner spinner=new Spinner(this);
         spinner.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        spinner.setGravity(Gravity.CENTER);
         String[] counts=new String[story.maxPlayers-story.minPlayers+1];
         for(int i=0;i<counts.length;i++) counts[i]=String.valueOf(story.minPlayers+i);
 
         ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_item,counts){
             @Override public View getView(int p,View c,ViewGroup parent){
                 TextView v=(TextView)super.getView(p,c,parent);
-                v.setText(rtl(counts[p])); v.setTextSize(20); v.setTextColor(WHITE);
-                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER); v.setPadding(18,8,18,8);
+                v.setText(rtl(counts[p])); v.setTextSize(23); v.setTextColor(WHITE);
+                v.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));
+                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER);
+                v.setPadding(20,0,20,0);
                 return v;
             }
             @Override public View getDropDownView(int p,View c,ViewGroup parent){
                 TextView v=(TextView)super.getDropDownView(p,c,parent);
-                v.setText(rtl(counts[p])); v.setTextSize(20); v.setTextColor(Color.BLACK);
-                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER); v.setPadding(18,12,18,12);
+                v.setText(rtl(counts[p])); v.setTextSize(22); v.setTextColor(Color.BLACK);
+                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER); v.setPadding(20,18,20,18);
                 return v;
             }
         };
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter); root.addView(spinner,new LinearLayout.LayoutParams(-1,72));
+        spinner.setAdapter(adapter);
+        GradientDrawable spinnerBg=new GradientDrawable();
+        spinnerBg.setColor(CARD); spinnerBg.setCornerRadius(14f);
+        spinnerBg.setStroke(2,Color.rgb(90,82,68));
+        spinner.setBackground(spinnerBg);
+        LinearLayout.LayoutParams spinnerParams=new LinearLayout.LayoutParams(-1,68);
+        spinnerParams.setMargins(0,8,0,14);
+        root.addView(spinner,spinnerParams);
+
+        TextView namesLabel=text("أسماء اللاعبين",21,WHITE,true);
+        namesLabel.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelParams=new LinearLayout.LayoutParams(-1,48);
+        labelParams.setMargins(0,0,0,4);
+        root.addView(namesLabel,labelParams);
 
         LinearLayout names=new LinearLayout(this);
-        names.setOrientation(LinearLayout.VERTICAL); names.setLayoutDirection(View.LAYOUT_DIRECTION_RTL); root.addView(names);
+        names.setOrientation(LinearLayout.VERTICAL); names.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        root.addView(names,new LinearLayout.LayoutParams(-1,-2));
         ArrayList<EditText> fields=new ArrayList<>();
 
         Runnable render=()->{
@@ -155,11 +181,14 @@ public class MainActivity extends Activity {
             for(int i=0;i<n;i++){
                 EditText e=new EditText(this);
                 e.setHint(rtl("اسم اللاعب "+(i+1))); e.setTextColor(WHITE); e.setHintTextColor(MUTED);
-                e.setTextSize(19); e.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+                e.setTextSize(20); e.setGravity(Gravity.CENTER);
                 e.setTextDirection(View.TEXT_DIRECTION_RTL); e.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                e.setTextLocale(AR); e.setSingleLine(true); e.setPadding(18,8,18,8);
-                e.setMinHeight(72); e.setMinimumHeight(72);
-                LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,72); ep.setMargins(0,3,0,3);
+                e.setTextLocale(AR); e.setSingleLine(true); e.setSelectAllOnFocus(false);
+                e.setPadding(20,0,20,0);
+                e.setBackground(createPlayerFieldBackground());
+                e.setMinHeight(64); e.setMinimumHeight(64);
+                LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,64);
+                ep.setMargins(0,5,0,5);
                 names.addView(e,ep); fields.add(e);
             }
         };
