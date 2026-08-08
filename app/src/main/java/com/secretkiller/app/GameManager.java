@@ -14,6 +14,7 @@ public final class GameManager {
 
     public GameManager(Story story, ArrayList<String> names) {
         this.story = story;
+        if(story.isCustom()) { ArrayList<CustomCharacter> cards=new ArrayList<>(); Collections.addAll(cards,story.customCharacters); Collections.shuffle(cards,random); for(int i=0;i<names.size();i++){CustomCharacter c=cards.get(i);players.add(new Player(i,names.get(i),c.name+" — "+c.role,c.guilty,c.secret,c.knowledge,c.statement));} return; }
         ArrayList<String> roles = story.rolesFor(names.size());
         Collections.shuffle(roles, random);
         for (int i = 0; i < names.size(); i++) {
