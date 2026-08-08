@@ -129,86 +129,100 @@ public class MainActivity extends Activity {
 
     void playerSetup(Story story){
         atHome=false; base(); navigationBar(); title("إعداد اللاعبين");
-        panel("القصة: "+story.title+"\n\nاختروا عدد اللاعبين ثم اكتبوا الأسماء.");
 
-        // Player-count selector: large, centered and easy to tap.
-        Spinner spinner=new Spinner(this);
-        spinner.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        spinner.setGravity(Gravity.CENTER);
-        String[] counts=new String[story.maxPlayers-story.minPlayers+1];
-        for(int i=0;i<counts.length;i++) counts[i]=String.valueOf(story.minPlayers+i);
+        panel("القصة: "+story.title+"\n\nاختاروا عدد اللاعبين ثم اكتبوا الأسماء.");
 
-        ArrayAdapter<String> adapter=new ArrayAdapter<String>(this,android.R.layout.simple_spinner_item,counts){
-            @Override public View getView(int p,View c,ViewGroup parent){
-                TextView v=(TextView)super.getView(p,c,parent);
-                v.setText(rtl(counts[p])); v.setTextSize(23); v.setTextColor(WHITE);
-                v.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));
-                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER);
-                v.setPadding(20,0,20,0);
-                return v;
-            }
-            @Override public View getDropDownView(int p,View c,ViewGroup parent){
-                TextView v=(TextView)super.getDropDownView(p,c,parent);
-                v.setText(rtl(counts[p])); v.setTextSize(22); v.setTextColor(Color.BLACK);
-                v.setTextDirection(View.TEXT_DIRECTION_RTL); v.setGravity(Gravity.CENTER); v.setPadding(20,18,20,18);
-                return v;
-            }
-        };
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        GradientDrawable spinnerBg=new GradientDrawable();
-        spinnerBg.setColor(CARD); spinnerBg.setCornerRadius(14f);
-        spinnerBg.setStroke(2,Color.rgb(90,82,68));
-        spinner.setBackground(spinnerBg);
-        LinearLayout.LayoutParams spinnerParams=new LinearLayout.LayoutParams(-1,68);
-        spinnerParams.setMargins(0,8,0,14);
-        root.addView(spinner,spinnerParams);
+        // A simple custom player-count button avoids the tiny/default Spinner UI.
+        final Button countButton=btn("عدد اللاعبين: "+story.minPlayers+" ▼",false);
+        countButton.setTextSize(21);
+        countButton.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams countParams=new LinearLayout.LayoutParams(-1,68);
+        countParams.setMargins(0,8,0,16);
+        root.addView(countButton,countParams);
 
-        TextView namesLabel=text("أسماء اللاعبين",21,WHITE,true);
-        namesLabel.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams labelParams=new LinearLayout.LayoutParams(-1,48);
-        labelParams.setMargins(0,0,0,4);
-        root.addView(namesLabel,labelParams);
+        final int min=story.minPlayers, max=story.maxPlayers;
+        final int[] selected={min};
 
-        LinearLayout names=new LinearLayout(this);
-        names.setOrientation(LinearLayout.VERTICAL); names.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        root.addView(names,new LinearLayout.LayoutParams(-1,-2));
-        ArrayList<EditText> fields=new ArrayList<>();
+        countButton.setOnClickListener(v->{
+            final String[] choices=new String[max-min+1];
+            for(int i=0;i<choices.length;i++) choices[i]=String.valueOf(min+i);
+            AlertDialog dialog=new AlertDialog.Builder(this)
+                .setTitle("عدد اللاعبين")
+                .setItems(choices,(d,which)->{
+                    selected[0]=min+which;
+                    countButton.setText("عدد اللاعبين: "+selected[0]+" ▼");
+                    renderPlayerFields(root, selected[0]);
+                }).create();
+            dialog.show();
+        });
+
+        TextView label=text("أسماء اللاعبين",20,WHITE,true);
+        label.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,48);
+        lp.setMargins(0,0,0,4);
+        root.addView(label,lp);
+
+        // Scroll only the player list so the action button remains reachable with 10–12 players.
+        final ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        final LinearLayout names=new LinearLayout(this);
+        names.setOrientation(LinearLayout.VERTICAL);
+        names.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        scroll.addView(names,new ScrollView.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams scrollParams=new LinearLayout.LayoutParams(-1,0,1f);
+        scrollParams.setMargins(0,0,0,10);
+        root.addView(scroll,scrollParams);
+
+        final ArrayList<EditText> fields=new ArrayList<>();
 
         Runnable render=()->{
-            names.removeAllViews(); fields.clear();
-            int n=Integer.parseInt((String)spinner.getSelectedItem());
-            for(int i=0;i<n;i++){
+            names.removeAllViews();
+            fields.clear();
+            for(int i=0;i<selected[0];i++){
                 EditText e=new EditText(this);
-                e.setHint(rtl("اسم اللاعب "+(i+1))); e.setTextColor(WHITE); e.setHintTextColor(MUTED);
-                e.setTextSize(20); e.setGravity(Gravity.CENTER);
-                e.setTextDirection(View.TEXT_DIRECTION_RTL); e.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                e.setTextLocale(AR); e.setSingleLine(true); e.setSelectAllOnFocus(false);
-                e.setPadding(20,0,20,0);
+                e.setHint("اللاعب "+(i+1));
+                e.setTextColor(WHITE);
+                e.setHintTextColor(MUTED);
+                e.setTextSize(20);
+                e.setGravity(Gravity.CENTER);
+                e.setTextDirection(View.TEXT_DIRECTION_RTL);
+                e.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                e.setTextLocale(AR);
+                e.setSingleLine(true);
+                e.setPadding(18,0,18,0);
                 e.setBackground(createPlayerFieldBackground());
-                e.setMinHeight(64); e.setMinimumHeight(64);
+
                 LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,64);
                 ep.setMargins(0,5,0,5);
-                names.addView(e,ep); fields.add(e);
+                names.addView(e,ep);
+                fields.add(e);
             }
         };
 
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
-            public void onItemSelected(AdapterView<?> p,View v,int pos,long id){render.run();}
-            public void onNothingSelected(AdapterView<?> p){}
-        });
+        // Keep a reference to the actual renderer used by the count dialog.
+        this.playerFieldRenderer=render;
         render.run();
 
         Button start=btn("توزيع الأدوار السرية",true);
+        start.setTextSize(20);
+        start.setMinHeight(64);
         start.setOnClickListener(v->{
             ArrayList<String> n=new ArrayList<>();
             for(int i=0;i<fields.size();i++){
                 String x=fields.get(i).getText().toString().trim();
                 n.add(x.isEmpty()?"اللاعب "+(i+1):x);
             }
-            game=new GameManager(story,n); rolePass(0);
+            game=new GameManager(story,n);
+            rolePass(0);
         });
         root.addView(start);
+    }
+
+    Runnable playerFieldRenderer;
+
+    void renderPlayerFields(LinearLayout rootView,int count){
+        if(playerFieldRenderer!=null) playerFieldRenderer.run();
     }
 
     void rolePass(final int i){
