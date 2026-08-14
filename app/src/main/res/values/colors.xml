@@ -8,4 +8,5 @@
     <color name="red">#D45B63</color>
     <color name="green">#68B58B</color>
     <color name="input_stroke">#46424C</color>
+    <color name="ic_launcher_background">#000000</color>
 </resources>
