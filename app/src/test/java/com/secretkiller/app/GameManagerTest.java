@@ -3,17 +3,33 @@ package com.secretkiller.app;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 import org.junit.Test;
 
 public class GameManagerTest {
-    @Test public void roleDistributionMatchesPlayerCount() {
+    @Test public void castSizeAndGuiltyCountMatchPlayerCount() {
         Story dreams = Story.catalog().get(0);
-        assertEquals(4, dreams.rolesFor(4).size());
-        assertEquals(2, guiltyCount(dreams.rolesFor(7)));
-        assertEquals(3, guiltyCount(dreams.rolesFor(12)));
+        Random random = new Random(1);
+        assertEquals(4, dreams.charactersFor(4, random).size());
+        assertEquals(2, guiltyCount(dreams.charactersFor(7, random)));
+        assertEquals(3, guiltyCount(dreams.charactersFor(12, random)));
+    }
+
+    @Test public void everyCharacterHasABelievableIdentitySeparateFromAlignment() {
+        for (Story story : Story.catalog()) {
+            for (StoryCharacter c : story.charactersFor(story.maxPlayers, new Random(2))) {
+                assertNotNull(c.name); assertFalse(c.name.isEmpty());
+                assertNotNull(c.profession); assertFalse(c.profession.isEmpty());
+                assertNotNull(c.publicIdentity); assertFalse(c.publicIdentity.isEmpty());
+                assertNotNull(c.secret); assertFalse(c.secret.isEmpty());
+                assertNotNull(c.objective); assertFalse(c.objective.isEmpty());
+                if (c.guilty) assertFalse(c.crimeObjective.isEmpty());
+            }
+        }
     }
 
     @Test public void eliminatingEveryGuiltyPlayerWinsForInnocents() {
@@ -37,9 +53,9 @@ public class GameManagerTest {
         assertEquals(game.story.clues[2].text, game.startNextRound().text);
     }
 
-    private int guiltyCount(ArrayList<String> roles) {
+    private int guiltyCount(ArrayList<StoryCharacter> cast) {
         int count = 0;
-        for (String role : roles) if (role.startsWith("القاتل") || role.equals("السارق") || role.equals("المتواطئ")) count++;
+        for (StoryCharacter c : cast) if (c.guilty) count++;
         return count;
     }
     private ArrayList<String> names(int count) {
