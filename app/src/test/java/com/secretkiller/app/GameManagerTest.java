@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -43,6 +44,39 @@ public class GameManagerTest {
         GameManager game = new GameManager(Story.catalog().get(1), names(4));
         for (Player player : game.players) if (!player.guilty) { game.eliminate(player.id); break; }
         assertEquals(1, game.wrongVotes);
+    }
+
+    @Test public void everyBuiltInStoryHasAtLeastThreeInvestigationRounds() {
+        for (Story story : Story.catalog()) {
+            assertTrue(story.id, story.investigationRounds.length >= 3);
+            for (InvestigationRound r : story.investigationRounds) {
+                assertFalse(r.title.isEmpty());
+                assertFalse(r.publicClue.isEmpty());
+            }
+        }
+    }
+
+    @Test public void investigationRoundsPlayOutInOrderThenHandOffToVoting() {
+        GameManager game = new GameManager(Story.catalog().get(0), names(4));
+        int total = game.story.investigationRounds.length;
+        for (int i = 0; i < total; i++) {
+            InvestigationRound r = game.currentInvestigationRound();
+            assertNotNull(r);
+            assertEquals(i + 1, r.roundNumber);
+            assertFalse(game.investigationFinished());
+            game.investigationIndex++;
+        }
+        assertTrue(game.investigationFinished());
+        assertNull(game.currentInvestigationRound());
+    }
+
+    @Test public void aStoryWithNoInvestigationRoundsGoesStraightToVoting() {
+        StoryCharacter[] cast = new StoryCharacter[4];
+        for (int i = 0; i < 4; i++) cast[i] = new StoryCharacter("شخصية " + i, "مهنة", "هوية", "سر", "معرفة", "قول", "هدف", i == 0, i == 0 ? "جريمة" : "");
+        Story legacyCustomStory = Story.custom("legacy", "قصة قديمة", "وصف", cast, new Clue[]{new Clue("دليل")}, "النهاية", null);
+        GameManager game = new GameManager(legacyCustomStory, names(4));
+        assertTrue(game.investigationFinished());
+        assertNull(game.currentInvestigationRound());
     }
 
     @Test public void tieClueIsNotRepeatedAsANewClueInTheNextRound() {

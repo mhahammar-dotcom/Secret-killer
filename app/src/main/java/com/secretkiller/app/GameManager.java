@@ -11,6 +11,8 @@ public final class GameManager {
     public int round, wrongVotes;
     private int clueIndex;
     private boolean reuseCurrentClue;
+    /** 0-based index into story.investigationRounds; advances as the pre-vote briefing plays out. */
+    public int investigationIndex;
     public final HashSet<String> investigationActionsUsed = new HashSet<>();
     private final Random random = new Random();
 
@@ -24,6 +26,14 @@ public final class GameManager {
     private void assignInvestigationRoles(){ArrayList<Player> innocent=activePlayers(); innocent.removeIf(p->p.guilty); if(!innocent.isEmpty()) innocent.get(random.nextInt(innocent.size())).detective=true;}
     public Player detective(){for(Player p:players)if(p.detective&&!p.eliminated)return p;return null;}
     public String conditionalClueFor(String actionId){for(InvestigationData.ConditionalClue c:story.investigation.conditionalClues)if(c.actionId.equals(actionId))return c.text;return "";}
+
+    /** The public investigation round due to be shown next, or null once every round in this
+     * story has already been shown (including when a story has none, e.g. an older custom
+     * story saved before this feature existed). */
+    public InvestigationRound currentInvestigationRound() {
+        return investigationIndex < story.investigationRounds.length ? story.investigationRounds[investigationIndex] : null;
+    }
+    public boolean investigationFinished() { return investigationIndex >= story.investigationRounds.length; }
 
     /** Starts a round with the next unrevealed clue, unless a tie already exposed it. */
     public Clue startNextRound() {

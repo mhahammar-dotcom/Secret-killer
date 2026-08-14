@@ -7,8 +7,9 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 /** Local-only persistence boundary; it can later be replaced by import/export or sharing.
- * Reads both the current character schema and the older (pre-redesign) one, so stories
- * saved before this update keep loading and playing. */
+ * Reads both the current character/investigation schema and older ones, so stories saved
+ * before those features existed keep loading and playing (an old story with no investigation
+ * rounds simply skips straight to voting — see GameManager.currentInvestigationRound). */
 public final class CustomStoryStore {
     private static final String PREFS="custom_stories", KEY="stories";
     private CustomStoryStore() {}
@@ -31,7 +32,18 @@ public final class CustomStoryStore {
                     cards[j]=new StoryCharacter(c.getString("name"),profession,publicIdentity,c.getString("secret"),c.getString("knowledge"),c.getString("statement"),objective,guilty,crimeObjective);
                 }
                 for(int j=0;j<clues.length();j++) clueCards[j]=new Clue(clues.getString(j));
-                result.add(Story.custom(o.getString("id"),o.getString("title"),o.getString("description"),cards,clueCards,o.getString("ending")));
+                InvestigationRound[] rounds;
+                if(o.has("investigationRounds")){
+                    JSONArray roundsJson=o.getJSONArray("investigationRounds");
+                    rounds=new InvestigationRound[roundsJson.length()];
+                    for(int j=0;j<roundsJson.length();j++){
+                        JSONObject r=roundsJson.getJSONObject(j);
+                        rounds[j]=new InvestigationRound(r.optInt("roundNumber",j+1),r.getString("title"),r.getString("publicClue"),r.optString("description",""),r.optString("discussionPrompt",""));
+                    }
+                } else {
+                    rounds=new InvestigationRound[0];
+                }
+                result.add(Story.custom(o.getString("id"),o.getString("title"),o.getString("description"),cards,clueCards,o.getString("ending"),rounds));
             }
         } catch(Exception ignored) {}
         return result;
@@ -42,7 +54,7 @@ public final class CustomStoryStore {
             for(Story s:stories){
                 JSONObject o=new JSONObject();
                 o.put("id",s.id);o.put("title",s.title);o.put("description",s.description);o.put("ending",s.customEnding);
-                JSONArray chars=new JSONArray(),clues=new JSONArray();
+                JSONArray chars=new JSONArray(),clues=new JSONArray(),rounds=new JSONArray();
                 for(StoryCharacter c:s.customCharacters){
                     JSONObject x=new JSONObject();
                     x.put("name",c.name);x.put("profession",c.profession);x.put("publicIdentity",c.publicIdentity);
@@ -51,7 +63,13 @@ public final class CustomStoryStore {
                     chars.put(x);
                 }
                 for(Clue c:s.clues)clues.put(c.text);
-                o.put("characters",chars);o.put("clues",clues);list.put(o);
+                for(InvestigationRound r:s.investigationRounds){
+                    JSONObject x=new JSONObject();
+                    x.put("roundNumber",r.roundNumber);x.put("title",r.title);x.put("publicClue",r.publicClue);
+                    x.put("description",r.description);x.put("discussionPrompt",r.discussionPrompt);
+                    rounds.put(x);
+                }
+                o.put("characters",chars);o.put("clues",clues);o.put("investigationRounds",rounds);list.put(o);
             }
         } catch(Exception ignored) { return; }
         context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putString(KEY,list.toString()).apply();
