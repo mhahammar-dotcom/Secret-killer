@@ -11,42 +11,20 @@ public final class GameManager {
     public int round, wrongVotes;
     private int clueIndex;
     private boolean reuseCurrentClue;
-    public final HashSet<String> investigationActionsUsed=new HashSet<>();
+    public final HashSet<String> investigationActionsUsed = new HashSet<>();
     private final Random random = new Random();
 
     public GameManager(Story story, ArrayList<String> names) {
         this.story = story;
-        if(story.isCustom()) { ArrayList<CustomCharacter> cards=new ArrayList<>(); Collections.addAll(cards,story.customCharacters); Collections.shuffle(cards,random); for(int i=0;i<names.size();i++){CustomCharacter c=cards.get(i);players.add(new Player(i,names.get(i),c.name+" — "+c.role,c.guilty,c.secret,c.knowledge,c.statement));} assignInvestigationRoles(); return; }
-        ArrayList<String> roles = story.rolesFor(names.size());
-        Collections.shuffle(roles, random);
-        for (int i = 0; i < names.size(); i++) {
-            String role = roles.get(i);
-            players.add(new Player(i, names.get(i), role, isGuilty(role), secretFor(role, story.id), knowledgeFor(role, story.id), statementFor(role, story.id)));
-        }
+        ArrayList<StoryCharacter> cast = story.charactersFor(names.size(), random);
+        Collections.shuffle(cast, random);
+        for (int i = 0; i < names.size(); i++) players.add(new Player(i, names.get(i), cast.get(i)));
         assignInvestigationRoles();
     }
-    private void assignInvestigationRoles(){ArrayList<Player> innocent=activePlayers(); innocent.removeIf(p->p.guilty); if(!innocent.isEmpty()) innocent.get(random.nextInt(innocent.size())).detective=true; for(Player p:players)if(p.guilty)p.killerObjective=story.investigation.killerObjectives[random.nextInt(story.investigation.killerObjectives.length)];}
+    private void assignInvestigationRoles(){ArrayList<Player> innocent=activePlayers(); innocent.removeIf(p->p.guilty); if(!innocent.isEmpty()) innocent.get(random.nextInt(innocent.size())).detective=true;}
     public Player detective(){for(Player p:players)if(p.detective&&!p.eliminated)return p;return null;}
     public String conditionalClueFor(String actionId){for(InvestigationData.ConditionalClue c:story.investigation.conditionalClues)if(c.actionId.equals(actionId))return c.text;return "";}
-    private boolean isGuilty(String role) { return role.startsWith("القاتل") || role.equals("السارق") || role.equals("المتواطئ"); }
-    private String secretFor(String role, String id) {
-        if (role.startsWith("القاتل")) return id.equals("train") ? "تعرف كيف عطلت نظام العربة، لكن لا تكشف السبب." : "أنت المذنب الأساسي. هدفك أن تمر الجريمة دون أن يكتشف الآخرون الرابط بين الأدلة.";
-        if (role.equals("السارق")) return "تريد الشيء المسروق لنفسك، لكنك لم ترتكب الجريمة الأصلية. لا تكشف أنك أخفيت دليلًا.";
-        if (role.equals("المتواطئ")) return "ساعدت أحد المذنبين بطريقة غير مباشرة، لكنك لا تعرف كل تفاصيل الخطة.";
-        return "لديك سر شخصي قد يجعلك تبدو مذنبًا، لكنه لا يعني أنك ارتكبت الجريمة.";
-    }
-    private String knowledgeFor(String role, String id) {
-        if (role.startsWith("القاتل")) return "تعرف أن دليلًا واحدًا على الأقل قد يضلل الأبرياء. استخدم النقاش لصالحك.";
-        if (role.equals("السارق")) return "تعرف أن شخصًا آخر كان يتحرك في مكان لا ينبغي أن يكون فيه.";
-        if (role.equals("المتواطئ")) return "تعرف جزءًا من الحقيقة، لكنك لا تعرف كل أدوار المذنبين.";
-        return id.equals("museum") ? "تعرف أن سجل الكاميرا لا يطابق سجل الحراسة." : id.equals("train") ? "تعرف أن الاتصالات انقطعت قبل اكتشاف المشكلة." : "تعرف أن الممر أو النظام كان يعمل بطريقة غير طبيعية قبل الحادث.";
-    }
-    private String statementFor(String role, String id) {
-        if (role.startsWith("القاتل")) return id.equals("train") ? "كنت في عربة الركاب عندما انقطع الاتصال." : "كنت بعيدًا عن مكان الحادث عندما بدأ كل شيء.";
-        if (role.equals("السارق")) return id.equals("museum") ? "كنت أتابع حركة الحارس ولم ألمس الخزنة." : "كنت أبحث عن مخرج عندما بدأت الفوضى.";
-        if (role.equals("المتواطئ")) return "كنت أحاول مساعدة الفريق، ولم أكن أعرف أن الأمر سيتحول إلى جريمة.";
-        return "كنت مشغولًا بمهمتي عندما وقع الحادث ولم أقترب من مكان الجريمة.";
-    }
+
     /** Starts a round with the next unrevealed clue, unless a tie already exposed it. */
     public Clue startNextRound() {
         round++;

@@ -34,7 +34,7 @@ public final class MainActivity extends Activity {
     private int voteTurn;
     private final LinkedHashMap<Integer, Integer> votes = new LinkedHashMap<>();
     private final ArrayList<String> draftNames = new ArrayList<>();
-    private final ArrayList<CustomCharacter> customCards = new ArrayList<>();
+    private final ArrayList<StoryCharacter> customCards = new ArrayList<>();
     private final ArrayList<String> customClues = new ArrayList<>();
     private String customTitle, customDescription; private int customPlayers, requestedGuilty;
     private int detectiveActionRound=-1;
@@ -123,7 +123,7 @@ public final class MainActivity extends Activity {
     private void storySelection() {
         atHome = false; base(); navigation(); addTitle(getString(R.string.choose_story));
         Button create=button("اصنع قصتك الخاصة",true); create.setOnClickListener(v->customInfo()); root.addView(create);
-        ArrayList<Story> saved=CustomStoryStore.load(this); if(!saved.isEmpty()){addTitle("قصصي الخاصة");for(Story story:saved){addPanel("✦ "+story.title+"\n\n"+story.description);Button play=button("ابدأ هذه القصة",false);play.setOnClickListener(v->playerSetup(story));root.addView(play);}}
+        ArrayList<Story> saved=CustomStoryStore.load(this); if(!saved.isEmpty()){addTitle("قصصي الخاصة");for(Story story:saved){addPanel("✦ "+story.title+"\n\n"+story.description);Button play=button("ابدأ هذه القصة",false);play.setOnClickListener(v->storyIntroduction(story));root.addView(play);}}
         for (Story story : Story.catalog()) {
             addPanel("🎭 " + story.title + "\n\n" + story.description + "\n\n" + f(R.string.players_range, story.minPlayers, story.maxPlayers));
             Button choose = button(getString(R.string.choose_this_story), true); choose.setOnClickListener(v -> storyIntroduction(story)); root.addView(choose);
@@ -136,9 +136,37 @@ public final class MainActivity extends Activity {
     private boolean missing(EditText... fields){for(EditText e:fields)if(e.getText().toString().trim().isEmpty())return true;return false;}
     private void notice(String message){new AlertDialog.Builder(this).setMessage(message).setPositiveButton("حسنًا",null).show();}
     private void customInfo(){atHome=false;base();navigation();addTitle("١ من ٥ — معلومات القصة");EditText title=field("عنوان القصة",false),description=field("وصف القصة",true),players=field("عدد اللاعبين (4 إلى 12)",false),guilty=field("عدد الشخصيات المذنبة",false);Button next=button("التالي: الشخصيات",true);next.setOnClickListener(v->{if(missing(title,description,players,guilty)){notice("أكمل جميع الحقول المطلوبة.");return;}try{customPlayers=Integer.parseInt(players.getText().toString().trim());requestedGuilty=Integer.parseInt(guilty.getText().toString().trim());}catch(Exception e){notice("أدخل أرقامًا صحيحة.");return;}if(customPlayers<4||customPlayers>12||requestedGuilty<1||requestedGuilty>=customPlayers){notice("عدد اللاعبين من ٤ إلى ١٢، وعدد المذنبين أقل من عدد اللاعبين.");return;}customTitle=title.getText().toString().trim();customDescription=description.getText().toString().trim();customCards.clear();customClues.clear();customCharacter(0);});root.addView(next);}
-    private void customCharacter(int index){atHome=false;base();navigation();addTitle("٢ من ٥ — الشخصيات ("+(index+1)+"/"+customPlayers+")");EditText name=field("اسم الشخصية",false),role=field("الوظيفة أو الدور",false),secret=field("السر",true),knowledge=field("المعرفة",true),statement=field("الجملة",true);final boolean[] guilty={index<requestedGuilty};Button toggle=button(guilty[0]?"الشخصية مذنبة":"الشخصية بريئة",false);toggle.setOnClickListener(v->{guilty[0]=!guilty[0];toggle.setText(guilty[0]?"الشخصية مذنبة":"الشخصية بريئة");});root.addView(toggle);if(index>0){Button remove=button("حذف الشخصية السابقة",false);remove.setOnClickListener(v->{customCards.remove(customCards.size()-1);customCharacter(index-1);});root.addView(remove);}Button next=button(index==customPlayers-1?"التالي: الأدلة":"حفظ الشخصية التالية",true);next.setOnClickListener(v->{if(missing(name,role,secret,knowledge,statement)){notice("أكمل جميع معلومات الشخصية.");return;}customCards.add(new CustomCharacter(name.getText().toString().trim(),role.getText().toString().trim(),secret.getText().toString().trim(),knowledge.getText().toString().trim(),statement.getText().toString().trim(),guilty[0]));if(index+1<customPlayers)customCharacter(index+1);else {int count=0;for(CustomCharacter c:customCards)if(c.guilty)count++;if(count!=requestedGuilty){notice("يجب أن يطابق عدد الشخصيات المذنبة العدد الذي اخترته.");customCards.remove(customCards.size()-1);customCharacter(index);return;}customClues();}});root.addView(next);}
+    private void customCharacter(int index){
+        atHome=false;base();navigation();addTitle("٢ من ٥ — الشخصيات ("+(index+1)+"/"+customPlayers+")");
+        EditText name=field("اسم الشخصية",false),
+                profession=field("المهنة أو الوظيفة",false),
+                publicIdentity=field("الهوية العلنية (ما يعرفه الجميع عنه)",true),
+                secret=field("السر",true),
+                knowledge=field("المعرفة الخاصة",true),
+                statement=field("الجملة التي يقولها للمجموعة",true),
+                objective=field("الهدف الشخصي",true),
+                crimeObjective=field("هدف الجريمة (للشخصية المذنبة فقط)",true);
+        final boolean[] guilty={index<requestedGuilty};
+        Button toggle=button(guilty[0]?"الشخصية مذنبة":"الشخصية بريئة",false);
+        toggle.setOnClickListener(v->{guilty[0]=!guilty[0];toggle.setText(guilty[0]?"الشخصية مذنبة":"الشخصية بريئة");});
+        root.addView(toggle);
+        if(index>0){Button remove=button("حذف الشخصية السابقة",false);remove.setOnClickListener(v->{customCards.remove(customCards.size()-1);customCharacter(index-1);});root.addView(remove);}
+        Button next=button(index==customPlayers-1?"التالي: الأدلة":"حفظ الشخصية التالية",true);
+        next.setOnClickListener(v->{
+            if(missing(name,profession,publicIdentity,secret,knowledge,statement,objective)){notice("أكمل جميع معلومات الشخصية.");return;}
+            if(guilty[0]&&crimeObjective.getText().toString().trim().isEmpty()){notice("أدخل هدف الجريمة لهذه الشخصية المذنبة.");return;}
+            customCards.add(new StoryCharacter(name.getText().toString().trim(),profession.getText().toString().trim(),publicIdentity.getText().toString().trim(),secret.getText().toString().trim(),knowledge.getText().toString().trim(),statement.getText().toString().trim(),objective.getText().toString().trim(),guilty[0],guilty[0]?crimeObjective.getText().toString().trim():""));
+            if(index+1<customPlayers)customCharacter(index+1);
+            else {
+                int count=0;for(StoryCharacter c:customCards)if(c.guilty)count++;
+                if(count!=requestedGuilty){notice("يجب أن يطابق عدد الشخصيات المذنبة العدد الذي اخترته.");customCards.remove(customCards.size()-1);customCharacter(index);return;}
+                customClues();
+            }
+        });
+        root.addView(next);
+    }
     private void customClues(){atHome=false;base();navigation();addTitle("٣ من ٥ — الأدلة");addPanel("أضف ثلاثة أدلة على الأقل. يمكنك إضافة المزيد.");LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);root.addView(list);EditText clue=field("نص الدليل",true);Button add=button("إضافة دليل",false);add.setOnClickListener(v->{String value=clue.getText().toString().trim();if(value.isEmpty()){notice("اكتب الدليل أولًا.");return;}customClues.add(value);TextView item=text("• "+value,16,color(R.color.text_primary),false);list.addView(item);clue.setText("");});root.addView(add);Button next=button("التالي: النهاية",true);next.setOnClickListener(v->{if(customClues.size()<3){notice("أضف ثلاثة أدلة على الأقل.");return;}customEnding();});root.addView(next);}
-    private void customEnding(){atHome=false;base();navigation();addTitle("٤ من ٥ — النهاية");EditText what=field("ماذا حدث حقًا؟",true),how=field("كيف حدثت الجريمة؟",true),why=field("لماذا حدثت؟",true);Button save=button("٥ من ٥ — حفظ القصة",true);save.setOnClickListener(v->{if(missing(what,how,why)){notice("أكمل معلومات النهاية.");return;}String ending="ماذا حدث حقًا؟\n"+what.getText().toString().trim()+"\n\nكيف حدثت الجريمة؟\n"+how.getText().toString().trim()+"\n\nلماذا حدثت؟\n"+why.getText().toString().trim();CustomCharacter[] cards=customCards.toArray(new CustomCharacter[0]);Clue[] clues=new Clue[customClues.size()];for(int i=0;i<clues.length;i++)clues[i]=new Clue(customClues.get(i));CustomStoryStore.save(this,Story.custom("custom_"+UUID.randomUUID(),customTitle,customDescription,cards,clues,ending));customSaved();});root.addView(save);}
+    private void customEnding(){atHome=false;base();navigation();addTitle("٤ من ٥ — النهاية");EditText what=field("ماذا حدث حقًا؟",true),how=field("كيف حدثت الجريمة؟",true),why=field("لماذا حدثت؟",true);Button save=button("٥ من ٥ — حفظ القصة",true);save.setOnClickListener(v->{if(missing(what,how,why)){notice("أكمل معلومات النهاية.");return;}String ending="ماذا حدث حقًا؟\n"+what.getText().toString().trim()+"\n\nكيف حدثت الجريمة؟\n"+how.getText().toString().trim()+"\n\nلماذا حدثت؟\n"+why.getText().toString().trim();StoryCharacter[] cards=customCards.toArray(new StoryCharacter[0]);Clue[] clues=new Clue[customClues.size()];for(int i=0;i<clues.length;i++)clues[i]=new Clue(customClues.get(i));CustomStoryStore.save(this,Story.custom("custom_"+UUID.randomUUID(),customTitle,customDescription,cards,clues,ending));customSaved();});root.addView(save);}
     private void customSaved(){atHome=false;base();addTitle("تم حفظ قصتك");addPanel("ستجدها الآن في قسم «قصصي الخاصة».");Button back=button("العودة إلى القصص",true);back.setOnClickListener(v->storySelection());root.addView(back);}
 
     private void playerSetup(Story story) {
@@ -180,8 +208,15 @@ public final class MainActivity extends Activity {
 
     private void rolePass(int index) { atHome = false; base(); navigation(); addTitle(getString(R.string.secret_distribution)); Player player = game.players.get(index); addPanel(f(R.string.pass_phone, name(player.name))); Button reveal = button(getString(R.string.reveal_my_role), true); reveal.setOnClickListener(v -> roleReveal(index)); root.addView(reveal); }
     private void roleReveal(int index) {
-        atHome = false; base(); navigation(); addTitle(getString(R.string.secret_role)); Player player = game.players.get(index);
-        root.addView(text(player.role, 28, player.guilty ? color(R.color.red) : color(R.color.green), true)); addPanel(f(R.string.your_secret, player.secret)); addPanel(f(R.string.your_knowledge, player.knowledge)); addPanel(f(R.string.your_statement, player.statement)); if(player.detective)addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة."); if(player.guilty)addPanel("هدفك السري\n\n"+player.killerObjective);
+        atHome = false; base(); navigation(); addTitle(getString(R.string.secret_role)); Player player = game.players.get(index); StoryCharacter c = player.character;
+        root.addView(text(name(c.name) + " — " + c.profession, 24, player.guilty ? color(R.color.red) : color(R.color.green), true));
+        addPanel("هويتك العلنية\n\n" + c.publicIdentity);
+        addPanel(f(R.string.your_secret, c.secret));
+        addPanel(f(R.string.your_knowledge, c.knowledge));
+        addPanel(f(R.string.your_statement, c.statement));
+        addPanel("هدفك الشخصي\n\n" + c.objective);
+        if (player.detective) addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة.");
+        if (player.guilty) addPanel("هدف الجريمة\n\n" + c.crimeObjective);
         Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else startRound(); }); root.addView(next);
     }
     private void startRound() { Clue clue = game.startNextRound(); atHome = false; base(); navigation(); addTitle(f(R.string.round, game.round)); addPanel(f(R.string.discussion, clue.text)); Button vote = button(getString(R.string.start_voting), true); vote.setOnClickListener(v -> beginVote()); root.addView(vote); }
@@ -205,7 +240,7 @@ public final class MainActivity extends Activity {
     private void showTie() { atHome = false; base(); navigation(); addTitle(getString(R.string.vote_result)); addPanel(getString(R.string.tie)); Button hint = button(getString(R.string.extra_hint), true); hint.setOnClickListener(v -> extraHint()); root.addView(hint); }
     private void extraHint() { atHome = false; base(); navigation(); addTitle(getString(R.string.extra_hint_title)); addPanel(f(R.string.extra_hint_format, game.revealExtraClue().text)); Button round = button(getString(R.string.new_round), true); round.setOnClickListener(v -> startRound()); root.addView(round); }
     private void showVoteResult(Player out, int count) { atHome = false; base(); navigation(); addTitle(getString(R.string.vote_result)); addPanel(out.guilty ? f(R.string.guilty_out, name(out.name), count) : f(R.string.innocent_out, name(out.name), count, game.story.wrongVoteHints[Math.min(game.wrongVotes - 1, game.story.wrongVoteHints.length - 1)])); Button next = button(game.innocentsWin() || game.guiltyWin() ? getString(R.string.reveal_ending) : getString(R.string.next_round), true); next.setOnClickListener(v -> { if (game.innocentsWin() || game.guiltyWin()) reveal(); else startRound(); }); root.addView(next); }
-    private void reveal() { atHome = false; base(); navigation(); addTitle(getString(R.string.truth)); StringBuilder roles = new StringBuilder("🎭 ").append(game.story.title).append("\n\n"); for (Player p : game.players) roles.append(name(p.name)).append(" — ").append(p.role).append(p.guilty ? " 🔴" : " 🟢").append("\n"); addPanel(roles.toString()); if(game.story.isCustom()) addPanel(game.story.customEnding); else addPanel(getString(game.innocentsWin() ? R.string.innocents_win : R.string.guilty_win)); Button stories = button(getString(R.string.back_to_stories), true); stories.setOnClickListener(v -> storySelection()); root.addView(stories); }
+    private void reveal() { atHome = false; base(); navigation(); addTitle(getString(R.string.truth)); StringBuilder roles = new StringBuilder("🎭 ").append(game.story.title).append("\n\n"); for (Player p : game.players) roles.append(name(p.name)).append(" — ").append(name(p.character.name)).append(" (").append(p.character.profession).append(")").append(p.guilty ? " 🔴" : " 🟢").append("\n"); addPanel(roles.toString()); if(game.story.isCustom()) addPanel(game.story.customEnding); else addPanel(getString(game.innocentsWin() ? R.string.innocents_win : R.string.guilty_win)); Button stories = button(getString(R.string.back_to_stories), true); stories.setOnClickListener(v -> storySelection()); root.addView(stories); }
     private void how() { atHome = true; base(); addTitle(getString(R.string.how_to_play)); addPanel(getString(R.string.instructions)); Button back = button(getString(R.string.back), true); back.setOnClickListener(v -> home()); root.addView(back); }
     private void exitStoryDialog() { AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.exit_story_title)).setMessage(getString(R.string.exit_story_message)).setNegativeButton(getString(R.string.no), null).setPositiveButton(getString(R.string.yes_exit), (d, w) -> home()).create(); dialog.setOnShowListener(ignored -> configureDialog(dialog)); dialog.show(); }
     private void exitAppDialog() { AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.exit_app_title)).setMessage(getString(R.string.exit_app_message)).setNegativeButton(getString(R.string.no), null).setPositiveButton(getString(R.string.yes_exit), (d, w) -> finish()).create(); dialog.setOnShowListener(ignored -> configureDialog(dialog)); dialog.show(); }
