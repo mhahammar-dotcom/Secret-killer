@@ -1,0 +1,320 @@
+From eb0ebe8139c5990f8083d392a5f275ff0145235e Mon Sep 17 00:00:00 2001
+From: Claude <assistant@anthropic.com>
+Date: Sat, 15 Aug 2026 12:19:13 +0000
+Subject: [PATCH] Gold-standard architecture: no objectives, free discussion,
+ ambiguous evidence
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Play-testing found the forced investigation-round sequence made the game
+too easy. This redesigns the core loop without touching the 11 existing
+built-in stories, the custom story builder, the voting system, the
+launcher icon, or RTL handling.
+
+CORE RULE (new): everyone knows something, everyone hides something, but
+only the guilty character's secret is directly connected to the crime.
+
+StoryCharacter.java:
+- Added a lean 6-arg constructor (name, profession, publicIdentity,
+  secret, knowledge, guilty) for new content -- no objective, no
+  statement, no separate crime objective. The original 9-arg constructor
+  is untouched and still backs all 11 existing built-in stories plus any
+  already-saved custom stories; both shapes now coexist on one class.
+
+MainActivity.java:
+- roleReveal(): objective/statement/crimeObjective panels are now shown
+  only when non-empty, so the new lean characters don't display blank
+  panels while the 11 existing stories (whose data is still non-empty)
+  render exactly as before.
+- Replaced the forced investigationStep() round-by-round sequence with
+  freeDiscussion() (a hub: reveal more evidence, or go straight to
+  voting -- player's choice) and evidenceReveal() (shows one piece of
+  public evidence, returns to the hub). This reuses the *same*
+  GameManager/InvestigationRound data and state (investigationIndex,
+  currentInvestigationRound(), investigationFinished()) that the old
+  flow used -- only the UI-level sequencing changed, not the data model,
+  per "do not perform a destructive rewrite." This also applies to the
+  11 existing stories' evidence, which directly addresses the
+  play-testing complaint for the whole app, not just the new story.
+
+Story.java:
+- Added an optional StoryIntroduction parameter to the fixed-cast
+  constructor (defaults to the old generic filler when omitted, so the
+  existing custom() factory used by the real custom-story builder and by
+  CustomStoryStore is 100% unchanged) plus a private builtIn() factory
+  for built-in fixed-cast stories.
+- Added ONE new gold-standard story to catalog(): "نخب أخير" (gala
+  poisoning), fixed at exactly 6 players / 1 guilty. All 6 characters
+  use the new lean shape. 4 evidence pieces, each written to plausibly
+  implicate more than one character (verified by a test that greps
+  every evidence string for every character's name). A full customEnding
+  covering who/what/why/how/which evidence/why each innocent looked
+  suspicious.
+
+GameManagerTest.java: updated the general character-shape sweep to only
+check the fields every story guarantees; added a dedicated legacy-shape
+regression test for the other 11 stories; added structural tests for the
+new story's character shape, evidence ambiguity, and confirmed voting is
+never gated by how much evidence has been revealed. 12/12 tests pass.
+
+Not touched: CustomStoryStore.java, Player.java, GameManager.java (data/
+state layer, reused as-is), InvestigationRound.java, InvestigationData.java,
+Clue.java, StoryIntroduction.java, the custom story builder UI, the
+launcher icon, AndroidManifest.xml, colors.xml, strings.xml. No Question
+Cards, no detective/special roles beyond what already existed, no
+branching endings, no online features.
+
+Known limitation: the custom story builder UI still collects
+statement/objective/crimeObjective fields (unchanged) -- the brief's own
+'eventually support' phrasing for the builder was treated as forward-
+looking prep, not an immediate rewrite, consistent with 'do not rewrite
+the entire application' and 'first create ONE gold-standard story.'
+---
+ .../com/secretkiller/app/MainActivity.java    | 49 ++++++++++-----
+ .../main/java/com/secretkiller/app/Story.java | 39 +++++++++++-
+ .../com/secretkiller/app/StoryCharacter.java  | 20 +++++-
+ .../com/secretkiller/app/GameManagerTest.java | 63 ++++++++++++++++++-
+ 4 files changed, 148 insertions(+), 23 deletions(-)
+
+diff --git a/app/src/main/java/com/secretkiller/app/MainActivity.java b/app/src/main/java/com/secretkiller/app/MainActivity.java
+index 9050db3..d3e6a73 100644
+--- a/app/src/main/java/com/secretkiller/app/MainActivity.java
++++ b/app/src/main/java/com/secretkiller/app/MainActivity.java
+@@ -215,26 +215,41 @@ public final class MainActivity extends Activity {
+         addPanel("هويتك العلنية\n\n" + c.publicIdentity);
+         addPanel(f(R.string.your_secret, c.secret));
+         addPanel(f(R.string.your_knowledge, c.knowledge));
+-        addPanel(f(R.string.your_statement, c.statement));
+-        addPanel("هدفك الشخصي\n\n" + c.objective);
++        if (!c.statement.isEmpty()) addPanel(f(R.string.your_statement, c.statement));
+         if (player.detective) addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة.");
+-        if (player.guilty) addPanel("هدف الجريمة\n\n" + c.crimeObjective);
+-        Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else investigationStep(); }); root.addView(next);
++        if (!c.objective.isEmpty()) addPanel("هدفك الشخصي\n\n" + c.objective);
++        if (player.guilty && !c.crimeObjective.isEmpty()) addPanel("هدف الجريمة\n\n" + c.crimeObjective);
++        Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else freeDiscussion(); }); root.addView(next);
+     }
+-    /** Public pre-vote briefing: walks through game.story.investigationRounds one at a time.
+-     * Falls straight through to the existing voting flow (startRound) once every round has
+-     * been shown — including immediately, for a story that has none at all. */
+-    private void investigationStep() {
+-        InvestigationRound investigationRound = game.currentInvestigationRound();
+-        if (investigationRound == null) { startRound(); return; }
++    /** Hub screen between private reveal and voting. Players choose for themselves whether to
++     * reveal another piece of evidence or move straight to voting — nothing is forced, and
++     * the app otherwise stays out of the way while they talk. Reuses the same public
++     * evidence pool (game.story.investigationRounds / game.currentInvestigationRound()) that
++     * the earlier forced round-by-round flow used; only the UI flow changed, not the data. */
++    private void freeDiscussion() {
+         atHome = false; base(); navigation();
+-        addTitle("🔎 التحقيق");
+-        addPanel("الجولة " + investigationRound.roundNumber + "\n\n" + investigationRound.title + "\n\n" + investigationRound.publicClue);
+-        if (!investigationRound.discussionPrompt.isEmpty()) addPanel("💬 للمناقشة\n\n" + investigationRound.discussionPrompt);
+-        boolean lastRound = game.investigationIndex >= game.story.investigationRounds.length - 1;
+-        Button next = button(lastRound ? "انتهت المناقشة، ابدأ التصويت" : "انتهت المناقشة", true);
+-        next.setOnClickListener(v -> { game.investigationIndex++; investigationStep(); });
+-        root.addView(next);
++        addTitle("🗣️ نقاش حر");
++        boolean moreEvidence = !game.investigationFinished();
++        addPanel(moreEvidence
++            ? "ناقشوا ما تعرفونه حتى الآن. يمكنكم كشف دليل جديد في أي وقت، أو الانتقال للتصويت مباشرة."
++            : "لا مزيد من الأدلة المتاحة. ناقشوا ما توصلتم إليه، ثم انتقلوا للتصويت متى شئتم.");
++        if (moreEvidence) { Button evidence = button("🔍 اعرض دليلاً", false); evidence.setOnClickListener(v -> evidenceReveal()); root.addView(evidence); }
++        Button vote = button("الانتقال إلى التصويت", true); vote.setOnClickListener(v -> startRound()); root.addView(vote);
++    }
++    /** Reveals one piece of public evidence (never the private character data), then returns
++     * to the free-discussion hub. Evidence never states who is guilty outright — the story
++     * data is written so each piece is plausibly connected to more than one character. */
++    private void evidenceReveal() {
++        InvestigationRound evidence = game.currentInvestigationRound();
++        if (evidence == null) { freeDiscussion(); return; }
++        game.investigationIndex++;
++        atHome = false; base(); navigation();
++        addTitle("🔍 " + evidence.title);
++        addPanel(evidence.publicClue);
++        if (!evidence.discussionPrompt.isEmpty()) addPanel("💬 للمناقشة\n\n" + evidence.discussionPrompt);
++        Button back = button("متابعة النقاش", true);
++        back.setOnClickListener(v -> freeDiscussion());
++        root.addView(back);
+     }
+     private void startRound() { Clue clue = game.startNextRound(); atHome = false; base(); navigation(); addTitle(f(R.string.round, game.round)); addPanel(f(R.string.discussion, clue.text)); Button vote = button(getString(R.string.start_voting), true); vote.setOnClickListener(v -> beginVote()); root.addView(vote); }
+     private void investigation(){Player detective=game.detective();if(detective==null){notice("لا يوجد محقق نشط في هذه الجولة.");return;}if(detectiveActionRound==game.round){notice("استخدم المحقق إجراءه لهذه الجولة بالفعل.");return;}atHome=false;base();navigation();addTitle("مرحلة التحقيق");addPanel("مرر الهاتف إلى: "+name(detective.name)+"\n\nاختر إجراء تحقيق واحدًا.");for(InvestigationData.Action action:game.story.investigation.actions){Button b=button(action.label,false);b.setOnClickListener(v->investigationResult(action));root.addView(b);}}
+diff --git a/app/src/main/java/com/secretkiller/app/Story.java b/app/src/main/java/com/secretkiller/app/Story.java
+index f45bbc3..bd90b73 100644
+--- a/app/src/main/java/com/secretkiller/app/Story.java
++++ b/app/src/main/java/com/secretkiller/app/Story.java
+@@ -21,16 +21,20 @@ public final class Story {
+         this.clues = clues; this.wrongVoteHints = hints; this.customCharacters = null; this.customEnding = null;
+         this.investigation = InvestigationData.standard(); this.investigationRounds = investigationRounds;
+     }
+-    private Story(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) {
++    private Story(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds, StoryIntroduction introduction) {
+         this.id = id; this.title = title; this.description = description;
+         this.minPlayers = characters.length; this.maxPlayers = characters.length;
+         this.guiltyPool = null; this.innocentPool = null; this.clues = clues;
+         this.wrongVoteHints = new String[]{"راجعوا الأدلة بعناية.", "لا تتسرعوا في الحكم.", "اسألوا عن التناقضات."};
+         this.customCharacters = characters; this.customEnding = ending; this.investigation = InvestigationData.standard();
+-        this.introduction = new StoryIntroduction(title, description, "حدثت جريمة وأصبحت الحقيقة موزعة بين الحاضرين.", "قد يهرب الفاعل أو يُتهم بريء.", "اكشفوا الحقيقة قبل فوات الأوان.");
++        this.introduction = introduction != null ? introduction : new StoryIntroduction(title, description, "حدثت جريمة وأصبحت الحقيقة موزعة بين الحاضرين.", "قد يهرب الفاعل أو يُتهم بريء.", "اكشفوا الحقيقة قبل فوات الأوان.");
+         this.investigationRounds = investigationRounds == null ? new InvestigationRound[0] : investigationRounds;
+     }
+-    public static Story custom(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) { return new Story(id, title, description, characters, clues, ending, investigationRounds); }
++    public static Story custom(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) { return new Story(id, title, description, characters, clues, ending, investigationRounds, null); }
++    /** Same fixed-cast shape as custom(), but for built-in stories that ship a real, tailored
++     * StoryIntroduction instead of the generic fallback custom() uses. Used for the
++     * gold-standard story in catalog() below; not exposed to the custom story builder. */
++    private static Story builtIn(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds, StoryIntroduction introduction) { return new Story(id, title, description, characters, clues, ending, investigationRounds, introduction); }
+     public boolean isCustom() { return customCharacters != null; }
+ 
+     private int guiltyCountFor(int players) {
+@@ -139,6 +143,35 @@ public final class Story {
+             new Clue[]{new Clue("صينية الحلوى استبدلت بصينية مطابقة بعد دخولها القاعة."),new Clue("شمعة قرب المطبخ انطفأت ثم أُعيد إشعالها في الوقت نفسه."),new Clue("ختم الرسالة ظهر مطبوعاً على قطعة سكر مكسورة."),new Clue("ممر الخدم سُجل فيه صوت عربة مرتين رغم وجود عربة واحدة.")},
+             new String[]{"الصواني المتطابقة تستخدم عادة لتقديم الحلوى بسرعة.","انطفاء الشمعة قد يكون بسبب تيار هواء من الباب.","بصمة الختم على السكر قد تكون من تحضير الرسالة لا من سرقتها."},
+             new InvestigationRound[]{new InvestigationRound(1,"الصينية المطابقة","سجل تجهيز الحلويات يؤكد أن صينيتين متطابقتين تمامًا أُعدّتا لهذه الوليمة، رغم أن الإجراء المعتاد لا يتطلب أكثر من صينية واحدة.","","من طلب تحضير صينية إضافية مطابقة لهذه الوليمة تحديدًا؟"),new InvestigationRound(2,"الشمعة التي انطفأت","أحد الخدم يتذكر أن شمعة قرب المطبخ انطفأت ثم أُعيد إشعالها بسرعة غير معتادة، في نفس اللحظة تقريبًا التي اختفت فيها الرسالة.","","من كان قريبًا من تلك الشمعة في تلك اللحظة بالذات؟"),new InvestigationRound(3,"صوت العربة المزدوج","أحد الحراس يؤكد أنه سمع صوت عجلات عربة الخدم مرتين متتاليتين في الممر الخلفي، رغم وجود عربة تقديم واحدة فقط مخصصة لهذا المسار.","","من مرّ بالممر الخلفي مرتين متتاليتين في ذلك التوقيت؟")}));
++
++        // ---- Gold-standard architecture story (fixed 6-player cast, lean StoryCharacter
++        // shape with no objective/statement, free-discussion evidence instead of a forced
++        // investigation sequence). See MainActivity.freeDiscussion()/evidenceReveal().
++        stories.add(Story.builtIn("gala_toast", "نخب أخير", "خلال حفل تكريم لتوقيع وصية جديدة، تعرّض صاحب الحفل للتسمم في كأس النخب. الجميع مشتبه به، وواحد منهم فقط مذنب فعلًا.",
++            new StoryCharacter[]{
++                new StoryCharacter("طارق","منسق الحفل","أنت من نظّمت كل تفاصيل هذه الليلة، من قائمة الضيوف إلى قائمة المشروبات.","تلاعبت بفواتير الحفل وأخذت عمولات سرية من الموردين لم يكن مراد يعرف بها.","رأيت سامية تتحدث مع مراد بتوتر واضح في الممر الخلفي قبل الحفل بنصف ساعة.",false),
++                new StoryCharacter("هند","الساقية","أنت من أعددتِ كل المشروبات الليلة، بما فيها كأس مراد الخاص.","قدّمتِ لمراد كأسًا من زجاجة فتحتِها مبكرًا رغم تعليمات صارمة بعدم فتح أي زجاجة قبل النخب الرسمي.","لاحظتِ أن كأس مراد بقي على الطاولة الجانبية دون مراقبة لعدة دقائق قبل أن يرفعه للنخب.",false),
++                new StoryCharacter("د. كريم","الطبيب الشخصي","أنت طبيب مراد الخاص منذ سنوات، وتعرف تفاصيل حالته الصحية أكثر من عائلته.","كنت تعرف أن مراد مريض بمرض خطير ولم تخبر العائلة، بناءً على طلبه الصريح.","تعرف أن دواء ضغط مراد قاتل إذا أُخذ بجرعة مضاعفة، وأن عبوته كانت في حقيبته الشخصية طوال الحفل.",false),
++                new StoryCharacter("نبيل","الشريك التجاري","أنت شريك مراد في الشركة منذ عشر سنوات، وحضورك الليلة كان متوقعًا من الجميع.","كنت تخطط لشراء حصة مراد بالإكراه إن رفض بيعها، عبر ضغط قانوني كان سيُعلن الأسبوع القادم.","سمعت مراد يقول لسامية إنه سيغيّر شيئًا «جوهريًا» في الوصية الليلة، دون أن يوضح ماذا يقصد.",false),
++                new StoryCharacter("ريما","الأخت المهجورة","أخت مراد التي ابتعدت عن العائلة منذ سنوات، وحضورك الليلة فاجأ الجميع.","جئتِ الليلة دون دعوة رسمية، لأنك في أزمة مالية خانقة وتأملين أن يذكرك مراد في وصيته الجديدة.","رأيتِ هند تضع كأس مراد جانبًا دون أن تراقبه للحظات، قبل أن يعود ويأخذه بنفسه.",false),
++                new StoryCharacter("سامية","محامية العائلة","أنت من تولّيت صياغة الوصية الجديدة لمراد، وتعرفين كل بند فيها قبل الجميع.","استبدلتِ دواء ضغط مراد المعتاد بجرعة مضاعفة قاتلة في كأسه، بعدما اكتشفتِ أنه ينوي حذف اسمك من الوصية في اللحظة الأخيرة.","تعرفين أن مراد طلب تعديل الوصية قبل الحفل بساعات، وطلب منك عدم إخبار أحد بذلك حتى يُعلنها بنفسه.",true),
++            },
++            new Clue[]{new Clue("تناول مراد كأسه المعتاد ثم تعثر وسقط أرضًا أثناء النخب."),new Clue("أكد الطبيب الحاضر وجود ما يشير إلى تسمم قبل دقائق من رفع الكأس."),new Clue("لم تُكسر أي أقفال ولم يدخل أحد من خارج الحضور المدعو.")},
++            "من هو الفاعل؟\nسامية، محامية العائلة، هي من سمّمت مراد.\n\nماذا فعلت؟\nاستبدلت جرعة دوائه المعتاد بجرعة مضاعفة قاتلة، ودسّتها في كأسه بينما كان بعيدًا عن الأنظار.\n\nلماذا فعلت ذلك؟\nلأنها اكتشفت أن مراد ينوي حذف اسمها من الوصية الجديدة في اللحظة الأخيرة، بعد سنوات من العمل معه.\n\nكيف حدثت الجريمة؟\nاستغلت الدقائق التي بقي فيها كأس مراد على الطاولة الجانبية دون مراقبة، وكانت تعرف جرعة دوائه القاتلة لأنها اطّلعت على ملفاته الطبية أثناء إعداد الوصية.\n\nأي الأدلة أشارت إليها؟\nالحديث المتوتر الذي جرى بينها وبين مراد في الممر الخلفي كان اللحظة التي أدركت فيها خطته، وعلبة الدواء الفارغة أكثر من المتوقع كانت من نصيبها.\n\nلماذا بدا الجميع مريبين؟\nطارق كان يخفي عمولات سرية من الموردين. هند فتحت زجاجة مبكرًا خرقًا للتعليمات. د. كريم كان يخفي مرض مراد الحقيقي بناءً على طلبه. نبيل كان يخطط للاستحواذ القسري على حصة مراد. ريما جاءت دون دعوة أملًا في وصية تشملها. كل واحد منهم كان يحمي سرًا شخصيًا لا علاقة له بجريمة القتل.",
++            new InvestigationRound[]{
++                new InvestigationRound(1,"الكأس المهجور","شهد أكثر من ضيف أن كأس مراد بقي على طاولة جانبية دون مراقبة لعدة دقائق قبل أن يرفعه للنخب.","","من كان قريبًا من تلك الطاولة في تلك الدقائق؟"),
++                new InvestigationRound(2,"علبة الدواء","عُثر على علبة دواء ضغط فارغة أكثر من المتوقع في حقيبة قريبة من طاولة المشروبات، رغم أن الجرعة اليومية لا تُفرغ العلبة بهذا الشكل.","","من يملك دواء ضغط، ومن كان يعرف مكان الحقيبة؟"),
++                new InvestigationRound(3,"الحديث المتوتر","أكد أحد الحضور أنه رأى مراد يتحدث بتوتر واضح مع شخص ما في الممر الخلفي قبل الحفل بنصف ساعة، دون أن يسمع تفاصيل الحديث.","","من كان في الممر الخلفي في ذلك الوقت؟"),
++                new InvestigationRound(4,"الزجاجة المبكرة","فُتحت إحدى زجاجات الشراب قبل موعد النخب الرسمي بوقت غير معتاد، رغم تعليمات واضحة بعدم فتح أي زجاجة قبل ذلك الموعد.","","لماذا قد تُفتح زجاجة قبل موعدها؟ ومن كان له حق الوصول إليها؟"),
++            },
++            new StoryIntroduction(
++                "في قاعة حفل فخمة أقيمت لتكريم رجل الأعمال «مراد الحلبي» بمناسبة توقيعه وصيته الجديدة، اجتمع أقرب الناس إليه لرفع نخب الاحتفال.",
++                "الجميع يعرف أن الوصية الجديدة ستغيّر الكثير من موازين القوة في العائلة والشركة، والليلة هي الليلة التي سيُعلن فيها التوقيع رسميًا أمام الحضور.",
++                "أثناء رفع النخب، تناول مراد كأسه المعتاد ثم تعثر وسقط أرضًا. أكد الطبيب الحاضر لاحقًا أن هناك ما يشير إلى أنه تعرّض للتسمم قبل أن يصل النخب إلى شفتيه بدقائق قليلة.",
++                "إن لم تُكشف الحقيقة الليلة، فإن التوقيع المؤجل على الوصية سيُنفَّذ تلقائيًا بالنسخة القديمة، وقد يفلت الفاعل من العقاب إلى الأبد.",
++                "بين الكؤوس الفارغة والوجوه المرتبكة، عليكم أن تكتشفوا من في هذه القاعة سمّم الرجل الذي كان يُفترض أن يكافئهم جميعًا الليلة."
++            )));
++
+         return stories;
+     }
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/com/secretkiller/app/StoryCharacter.java b/app/src/main/java/com/secretkiller/app/StoryCharacter.java
+index 2f3f0cb..fc2c0fe 100644
+--- a/app/src/main/java/com/secretkiller/app/StoryCharacter.java
++++ b/app/src/main/java/com/secretkiller/app/StoryCharacter.java
+@@ -1,8 +1,26 @@
+ package com.secretkiller.app;
+ 
+-/** Character identity is public; alignment and crime objective remain private. */
++/** Character identity is public; alignment stays private.
++ *
++ * `statement`, `objective`, and `crimeObjective` are legacy fields from the earlier
++ * (Phase 4/5) design and are kept only so the 12 original built-in stories and any
++ * already-saved custom stories keep compiling and playing unchanged — they are never
++ * required for new content. The gold-standard architecture's character shape is just:
++ * name, profession, publicIdentity, secret, knowledge (= "private knowledge" — what the
++ * character knows about the case and may voluntarily reveal), and guilty. Use the leaner
++ * six-argument constructor below for any new story; it leaves the legacy fields empty,
++ * and the UI skips a panel entirely when its text is empty rather than showing blank
++ * "objective"/"statement" panels. */
+ public final class StoryCharacter {
+     public final String name, profession, publicIdentity, secret, knowledge, statement, objective, crimeObjective;
+     public final boolean guilty;
++
++    /** Full legacy shape — used by the original 12 built-in stories and by stories loaded
++     * from older saved custom-story data. */
+     public StoryCharacter(String name,String profession,String publicIdentity,String secret,String knowledge,String statement,String objective,boolean guilty,String crimeObjective){this.name=name;this.profession=profession;this.publicIdentity=publicIdentity;this.secret=secret;this.knowledge=knowledge;this.statement=statement;this.objective=objective;this.guilty=guilty;this.crimeObjective=crimeObjective;}
++
++    /** Gold-standard shape: name, profession, public identity, secret, private knowledge,
++     * guilty. No objective, no statement, no separate crime objective — per the redesigned
++     * architecture, only `secret` carries the guilty character's connection to the crime. */
++    public StoryCharacter(String name,String profession,String publicIdentity,String secret,String knowledge,boolean guilty){this(name,profession,publicIdentity,secret,knowledge,"","",guilty,"");}
+ }
+diff --git a/app/src/test/java/com/secretkiller/app/GameManagerTest.java b/app/src/test/java/com/secretkiller/app/GameManagerTest.java
+index ada863d..5aad222 100644
+--- a/app/src/test/java/com/secretkiller/app/GameManagerTest.java
++++ b/app/src/test/java/com/secretkiller/app/GameManagerTest.java
+@@ -27,12 +27,71 @@ public class GameManagerTest {
+                 assertNotNull(c.profession); assertFalse(c.profession.isEmpty());
+                 assertNotNull(c.publicIdentity); assertFalse(c.publicIdentity.isEmpty());
+                 assertNotNull(c.secret); assertFalse(c.secret.isEmpty());
+-                assertNotNull(c.objective); assertFalse(c.objective.isEmpty());
+-                if (c.guilty) assertFalse(c.crimeObjective.isEmpty());
++                assertNotNull(c.knowledge); assertFalse(c.knowledge.isEmpty());
+             }
+         }
+     }
+ 
++    @Test public void legacyStoriesStillCarryTheirOriginalObjectiveAndCrimeObjective() {
++        // The 11 original pool-based stories (everything except the gold-standard one) were
++        // never rewritten, and must keep behaving exactly as before.
++        for (Story story : Story.catalog()) {
++            if (story.id.equals("gala_toast")) continue;
++            for (StoryCharacter c : story.charactersFor(story.maxPlayers, new Random(3))) {
++                assertFalse(story.id + "/" + c.name, c.objective.isEmpty());
++                if (c.guilty) assertFalse(story.id + "/" + c.name, c.crimeObjective.isEmpty());
++            }
++        }
++    }
++
++    @Test public void goldStandardStoryHasSixCharactersExactlyOneGuiltyAndNoObjectiveField() {
++        Story gala = findStory("gala_toast");
++        assertEquals(6, gala.minPlayers);
++        assertEquals(6, gala.maxPlayers);
++        ArrayList<StoryCharacter> cast = gala.charactersFor(6, new Random(4));
++        assertEquals(6, cast.size());
++        int guiltyCount = 0;
++        for (StoryCharacter c : cast) {
++            assertTrue(c.objective.isEmpty());
++            assertTrue(c.statement.isEmpty());
++            assertTrue(c.crimeObjective.isEmpty());
++            assertFalse(c.knowledge.isEmpty());
++            assertFalse(c.secret.isEmpty());
++            if (c.guilty) guiltyCount++;
++        }
++        assertEquals(1, guiltyCount);
++    }
++
++    @Test public void goldStandardStoryHasAmbiguousEvidenceAndAFullEndingExplanation() {
++        Story gala = findStory("gala_toast");
++        assertTrue(gala.investigationRounds.length >= 3);
++        for (InvestigationRound evidence : gala.investigationRounds) {
++            assertFalse(evidence.title.isEmpty());
++            assertFalse(evidence.publicClue.isEmpty());
++            // Evidence must not name a character directly, per the "ambiguous evidence" rule.
++            for (StoryCharacter c : gala.charactersFor(6, new Random(5))) assertFalse(evidence.publicClue.contains(c.name));
++        }
++        assertTrue(gala.isCustom());
++        assertTrue(gala.customEnding.length() > 200);
++    }
++
++    @Test public void votingIsNeverGatedByHowMuchEvidenceHasBeenRevealed() {
++        // The new architecture must not force players through every piece of evidence before
++        // voting is allowed -- GameManager exposes no such gate, by design.
++        Story gala = findStory("gala_toast");
++        GameManager game = new GameManager(gala, names(6));
++        assertEquals(0, game.investigationIndex); // nothing revealed yet
++        Clue clue = game.startNextRound(); // voting/round flow works regardless
++        assertNotNull(clue);
++        for (Player p : game.players) if (p.guilty) game.eliminate(p.id);
++        assertTrue(game.innocentsWin());
++    }
++
++    private Story findStory(String id) {
++        for (Story s : Story.catalog()) if (s.id.equals(id)) return s;
++        throw new AssertionError("story not found: " + id);
++    }
++
+     @Test public void eliminatingEveryGuiltyPlayerWinsForInnocents() {
+         GameManager game = new GameManager(Story.catalog().get(0), names(4));
+         for (Player player : game.players) if (player.guilty) game.eliminate(player.id);
+-- 
+2.43.0
+

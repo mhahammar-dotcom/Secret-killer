@@ -215,26 +215,41 @@ public final class MainActivity extends Activity {
         addPanel("هويتك العلنية\n\n" + c.publicIdentity);
         addPanel(f(R.string.your_secret, c.secret));
         addPanel(f(R.string.your_knowledge, c.knowledge));
-        addPanel(f(R.string.your_statement, c.statement));
-        addPanel("هدفك الشخصي\n\n" + c.objective);
+        if (!c.statement.isEmpty()) addPanel(f(R.string.your_statement, c.statement));
         if (player.detective) addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة.");
-        if (player.guilty) addPanel("هدف الجريمة\n\n" + c.crimeObjective);
-        Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else investigationStep(); }); root.addView(next);
+        if (!c.objective.isEmpty()) addPanel("هدفك الشخصي\n\n" + c.objective);
+        if (player.guilty && !c.crimeObjective.isEmpty()) addPanel("هدف الجريمة\n\n" + c.crimeObjective);
+        Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else freeDiscussion(); }); root.addView(next);
     }
-    /** Public pre-vote briefing: walks through game.story.investigationRounds one at a time.
-     * Falls straight through to the existing voting flow (startRound) once every round has
-     * been shown — including immediately, for a story that has none at all. */
-    private void investigationStep() {
-        InvestigationRound investigationRound = game.currentInvestigationRound();
-        if (investigationRound == null) { startRound(); return; }
+    /** Hub screen between private reveal and voting. Players choose for themselves whether to
+     * reveal another piece of evidence or move straight to voting — nothing is forced, and
+     * the app otherwise stays out of the way while they talk. Reuses the same public
+     * evidence pool (game.story.investigationRounds / game.currentInvestigationRound()) that
+     * the earlier forced round-by-round flow used; only the UI flow changed, not the data. */
+    private void freeDiscussion() {
         atHome = false; base(); navigation();
-        addTitle("🔎 التحقيق");
-        addPanel("الجولة " + investigationRound.roundNumber + "\n\n" + investigationRound.title + "\n\n" + investigationRound.publicClue);
-        if (!investigationRound.discussionPrompt.isEmpty()) addPanel("💬 للمناقشة\n\n" + investigationRound.discussionPrompt);
-        boolean lastRound = game.investigationIndex >= game.story.investigationRounds.length - 1;
-        Button next = button(lastRound ? "انتهت المناقشة، ابدأ التصويت" : "انتهت المناقشة", true);
-        next.setOnClickListener(v -> { game.investigationIndex++; investigationStep(); });
-        root.addView(next);
+        addTitle("🗣️ نقاش حر");
+        boolean moreEvidence = !game.investigationFinished();
+        addPanel(moreEvidence
+            ? "ناقشوا ما تعرفونه حتى الآن. يمكنكم كشف دليل جديد في أي وقت، أو الانتقال للتصويت مباشرة."
+            : "لا مزيد من الأدلة المتاحة. ناقشوا ما توصلتم إليه، ثم انتقلوا للتصويت متى شئتم.");
+        if (moreEvidence) { Button evidence = button("🔍 اعرض دليلاً", false); evidence.setOnClickListener(v -> evidenceReveal()); root.addView(evidence); }
+        Button vote = button("الانتقال إلى التصويت", true); vote.setOnClickListener(v -> startRound()); root.addView(vote);
+    }
+    /** Reveals one piece of public evidence (never the private character data), then returns
+     * to the free-discussion hub. Evidence never states who is guilty outright — the story
+     * data is written so each piece is plausibly connected to more than one character. */
+    private void evidenceReveal() {
+        InvestigationRound evidence = game.currentInvestigationRound();
+        if (evidence == null) { freeDiscussion(); return; }
+        game.investigationIndex++;
+        atHome = false; base(); navigation();
+        addTitle("🔍 " + evidence.title);
+        addPanel(evidence.publicClue);
+        if (!evidence.discussionPrompt.isEmpty()) addPanel("💬 للمناقشة\n\n" + evidence.discussionPrompt);
+        Button back = button("متابعة النقاش", true);
+        back.setOnClickListener(v -> freeDiscussion());
+        root.addView(back);
     }
     private void startRound() { Clue clue = game.startNextRound(); atHome = false; base(); navigation(); addTitle(f(R.string.round, game.round)); addPanel(f(R.string.discussion, clue.text)); Button vote = button(getString(R.string.start_voting), true); vote.setOnClickListener(v -> beginVote()); root.addView(vote); }
     private void investigation(){Player detective=game.detective();if(detective==null){notice("لا يوجد محقق نشط في هذه الجولة.");return;}if(detectiveActionRound==game.round){notice("استخدم المحقق إجراءه لهذه الجولة بالفعل.");return;}atHome=false;base();navigation();addTitle("مرحلة التحقيق");addPanel("مرر الهاتف إلى: "+name(detective.name)+"\n\nاختر إجراء تحقيق واحدًا.");for(InvestigationData.Action action:game.story.investigation.actions){Button b=button(action.label,false);b.setOnClickListener(v->investigationResult(action));root.addView(b);}}

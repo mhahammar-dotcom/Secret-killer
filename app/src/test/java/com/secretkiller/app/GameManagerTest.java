@@ -27,10 +27,69 @@ public class GameManagerTest {
                 assertNotNull(c.profession); assertFalse(c.profession.isEmpty());
                 assertNotNull(c.publicIdentity); assertFalse(c.publicIdentity.isEmpty());
                 assertNotNull(c.secret); assertFalse(c.secret.isEmpty());
-                assertNotNull(c.objective); assertFalse(c.objective.isEmpty());
-                if (c.guilty) assertFalse(c.crimeObjective.isEmpty());
+                assertNotNull(c.knowledge); assertFalse(c.knowledge.isEmpty());
             }
         }
+    }
+
+    @Test public void legacyStoriesStillCarryTheirOriginalObjectiveAndCrimeObjective() {
+        // The 11 original pool-based stories (everything except the gold-standard one) were
+        // never rewritten, and must keep behaving exactly as before.
+        for (Story story : Story.catalog()) {
+            if (story.id.equals("gala_toast")) continue;
+            for (StoryCharacter c : story.charactersFor(story.maxPlayers, new Random(3))) {
+                assertFalse(story.id + "/" + c.name, c.objective.isEmpty());
+                if (c.guilty) assertFalse(story.id + "/" + c.name, c.crimeObjective.isEmpty());
+            }
+        }
+    }
+
+    @Test public void goldStandardStoryHasSixCharactersExactlyOneGuiltyAndNoObjectiveField() {
+        Story gala = findStory("gala_toast");
+        assertEquals(6, gala.minPlayers);
+        assertEquals(6, gala.maxPlayers);
+        ArrayList<StoryCharacter> cast = gala.charactersFor(6, new Random(4));
+        assertEquals(6, cast.size());
+        int guiltyCount = 0;
+        for (StoryCharacter c : cast) {
+            assertTrue(c.objective.isEmpty());
+            assertTrue(c.statement.isEmpty());
+            assertTrue(c.crimeObjective.isEmpty());
+            assertFalse(c.knowledge.isEmpty());
+            assertFalse(c.secret.isEmpty());
+            if (c.guilty) guiltyCount++;
+        }
+        assertEquals(1, guiltyCount);
+    }
+
+    @Test public void goldStandardStoryHasAmbiguousEvidenceAndAFullEndingExplanation() {
+        Story gala = findStory("gala_toast");
+        assertTrue(gala.investigationRounds.length >= 3);
+        for (InvestigationRound evidence : gala.investigationRounds) {
+            assertFalse(evidence.title.isEmpty());
+            assertFalse(evidence.publicClue.isEmpty());
+            // Evidence must not name a character directly, per the "ambiguous evidence" rule.
+            for (StoryCharacter c : gala.charactersFor(6, new Random(5))) assertFalse(evidence.publicClue.contains(c.name));
+        }
+        assertTrue(gala.isCustom());
+        assertTrue(gala.customEnding.length() > 200);
+    }
+
+    @Test public void votingIsNeverGatedByHowMuchEvidenceHasBeenRevealed() {
+        // The new architecture must not force players through every piece of evidence before
+        // voting is allowed -- GameManager exposes no such gate, by design.
+        Story gala = findStory("gala_toast");
+        GameManager game = new GameManager(gala, names(6));
+        assertEquals(0, game.investigationIndex); // nothing revealed yet
+        Clue clue = game.startNextRound(); // voting/round flow works regardless
+        assertNotNull(clue);
+        for (Player p : game.players) if (p.guilty) game.eliminate(p.id);
+        assertTrue(game.innocentsWin());
+    }
+
+    private Story findStory(String id) {
+        for (Story s : Story.catalog()) if (s.id.equals(id)) return s;
+        throw new AssertionError("story not found: " + id);
     }
 
     @Test public void eliminatingEveryGuiltyPlayerWinsForInnocents() {

@@ -21,16 +21,20 @@ public final class Story {
         this.clues = clues; this.wrongVoteHints = hints; this.customCharacters = null; this.customEnding = null;
         this.investigation = InvestigationData.standard(); this.investigationRounds = investigationRounds;
     }
-    private Story(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) {
+    private Story(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds, StoryIntroduction introduction) {
         this.id = id; this.title = title; this.description = description;
         this.minPlayers = characters.length; this.maxPlayers = characters.length;
         this.guiltyPool = null; this.innocentPool = null; this.clues = clues;
         this.wrongVoteHints = new String[]{"راجعوا الأدلة بعناية.", "لا تتسرعوا في الحكم.", "اسألوا عن التناقضات."};
         this.customCharacters = characters; this.customEnding = ending; this.investigation = InvestigationData.standard();
-        this.introduction = new StoryIntroduction(title, description, "حدثت جريمة وأصبحت الحقيقة موزعة بين الحاضرين.", "قد يهرب الفاعل أو يُتهم بريء.", "اكشفوا الحقيقة قبل فوات الأوان.");
+        this.introduction = introduction != null ? introduction : new StoryIntroduction(title, description, "حدثت جريمة وأصبحت الحقيقة موزعة بين الحاضرين.", "قد يهرب الفاعل أو يُتهم بريء.", "اكشفوا الحقيقة قبل فوات الأوان.");
         this.investigationRounds = investigationRounds == null ? new InvestigationRound[0] : investigationRounds;
     }
-    public static Story custom(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) { return new Story(id, title, description, characters, clues, ending, investigationRounds); }
+    public static Story custom(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds) { return new Story(id, title, description, characters, clues, ending, investigationRounds, null); }
+    /** Same fixed-cast shape as custom(), but for built-in stories that ship a real, tailored
+     * StoryIntroduction instead of the generic fallback custom() uses. Used for the
+     * gold-standard story in catalog() below; not exposed to the custom story builder. */
+    private static Story builtIn(String id, String title, String description, StoryCharacter[] characters, Clue[] clues, String ending, InvestigationRound[] investigationRounds, StoryIntroduction introduction) { return new Story(id, title, description, characters, clues, ending, investigationRounds, introduction); }
     public boolean isCustom() { return customCharacters != null; }
 
     private int guiltyCountFor(int players) {
@@ -139,6 +143,35 @@ public final class Story {
             new Clue[]{new Clue("صينية الحلوى استبدلت بصينية مطابقة بعد دخولها القاعة."),new Clue("شمعة قرب المطبخ انطفأت ثم أُعيد إشعالها في الوقت نفسه."),new Clue("ختم الرسالة ظهر مطبوعاً على قطعة سكر مكسورة."),new Clue("ممر الخدم سُجل فيه صوت عربة مرتين رغم وجود عربة واحدة.")},
             new String[]{"الصواني المتطابقة تستخدم عادة لتقديم الحلوى بسرعة.","انطفاء الشمعة قد يكون بسبب تيار هواء من الباب.","بصمة الختم على السكر قد تكون من تحضير الرسالة لا من سرقتها."},
             new InvestigationRound[]{new InvestigationRound(1,"الصينية المطابقة","سجل تجهيز الحلويات يؤكد أن صينيتين متطابقتين تمامًا أُعدّتا لهذه الوليمة، رغم أن الإجراء المعتاد لا يتطلب أكثر من صينية واحدة.","","من طلب تحضير صينية إضافية مطابقة لهذه الوليمة تحديدًا؟"),new InvestigationRound(2,"الشمعة التي انطفأت","أحد الخدم يتذكر أن شمعة قرب المطبخ انطفأت ثم أُعيد إشعالها بسرعة غير معتادة، في نفس اللحظة تقريبًا التي اختفت فيها الرسالة.","","من كان قريبًا من تلك الشمعة في تلك اللحظة بالذات؟"),new InvestigationRound(3,"صوت العربة المزدوج","أحد الحراس يؤكد أنه سمع صوت عجلات عربة الخدم مرتين متتاليتين في الممر الخلفي، رغم وجود عربة تقديم واحدة فقط مخصصة لهذا المسار.","","من مرّ بالممر الخلفي مرتين متتاليتين في ذلك التوقيت؟")}));
+
+        // ---- Gold-standard architecture story (fixed 6-player cast, lean StoryCharacter
+        // shape with no objective/statement, free-discussion evidence instead of a forced
+        // investigation sequence). See MainActivity.freeDiscussion()/evidenceReveal().
+        stories.add(Story.builtIn("gala_toast", "نخب أخير", "خلال حفل تكريم لتوقيع وصية جديدة، تعرّض صاحب الحفل للتسمم في كأس النخب. الجميع مشتبه به، وواحد منهم فقط مذنب فعلًا.",
+            new StoryCharacter[]{
+                new StoryCharacter("طارق","منسق الحفل","أنت من نظّمت كل تفاصيل هذه الليلة، من قائمة الضيوف إلى قائمة المشروبات.","تلاعبت بفواتير الحفل وأخذت عمولات سرية من الموردين لم يكن مراد يعرف بها.","رأيت سامية تتحدث مع مراد بتوتر واضح في الممر الخلفي قبل الحفل بنصف ساعة.",false),
+                new StoryCharacter("هند","الساقية","أنت من أعددتِ كل المشروبات الليلة، بما فيها كأس مراد الخاص.","قدّمتِ لمراد كأسًا من زجاجة فتحتِها مبكرًا رغم تعليمات صارمة بعدم فتح أي زجاجة قبل النخب الرسمي.","لاحظتِ أن كأس مراد بقي على الطاولة الجانبية دون مراقبة لعدة دقائق قبل أن يرفعه للنخب.",false),
+                new StoryCharacter("د. كريم","الطبيب الشخصي","أنت طبيب مراد الخاص منذ سنوات، وتعرف تفاصيل حالته الصحية أكثر من عائلته.","كنت تعرف أن مراد مريض بمرض خطير ولم تخبر العائلة، بناءً على طلبه الصريح.","تعرف أن دواء ضغط مراد قاتل إذا أُخذ بجرعة مضاعفة، وأن عبوته كانت في حقيبته الشخصية طوال الحفل.",false),
+                new StoryCharacter("نبيل","الشريك التجاري","أنت شريك مراد في الشركة منذ عشر سنوات، وحضورك الليلة كان متوقعًا من الجميع.","كنت تخطط لشراء حصة مراد بالإكراه إن رفض بيعها، عبر ضغط قانوني كان سيُعلن الأسبوع القادم.","سمعت مراد يقول لسامية إنه سيغيّر شيئًا «جوهريًا» في الوصية الليلة، دون أن يوضح ماذا يقصد.",false),
+                new StoryCharacter("ريما","الأخت المهجورة","أخت مراد التي ابتعدت عن العائلة منذ سنوات، وحضورك الليلة فاجأ الجميع.","جئتِ الليلة دون دعوة رسمية، لأنك في أزمة مالية خانقة وتأملين أن يذكرك مراد في وصيته الجديدة.","رأيتِ هند تضع كأس مراد جانبًا دون أن تراقبه للحظات، قبل أن يعود ويأخذه بنفسه.",false),
+                new StoryCharacter("سامية","محامية العائلة","أنت من تولّيت صياغة الوصية الجديدة لمراد، وتعرفين كل بند فيها قبل الجميع.","استبدلتِ دواء ضغط مراد المعتاد بجرعة مضاعفة قاتلة في كأسه، بعدما اكتشفتِ أنه ينوي حذف اسمك من الوصية في اللحظة الأخيرة.","تعرفين أن مراد طلب تعديل الوصية قبل الحفل بساعات، وطلب منك عدم إخبار أحد بذلك حتى يُعلنها بنفسه.",true),
+            },
+            new Clue[]{new Clue("تناول مراد كأسه المعتاد ثم تعثر وسقط أرضًا أثناء النخب."),new Clue("أكد الطبيب الحاضر وجود ما يشير إلى تسمم قبل دقائق من رفع الكأس."),new Clue("لم تُكسر أي أقفال ولم يدخل أحد من خارج الحضور المدعو.")},
+            "من هو الفاعل؟\nسامية، محامية العائلة، هي من سمّمت مراد.\n\nماذا فعلت؟\nاستبدلت جرعة دوائه المعتاد بجرعة مضاعفة قاتلة، ودسّتها في كأسه بينما كان بعيدًا عن الأنظار.\n\nلماذا فعلت ذلك؟\nلأنها اكتشفت أن مراد ينوي حذف اسمها من الوصية الجديدة في اللحظة الأخيرة، بعد سنوات من العمل معه.\n\nكيف حدثت الجريمة؟\nاستغلت الدقائق التي بقي فيها كأس مراد على الطاولة الجانبية دون مراقبة، وكانت تعرف جرعة دوائه القاتلة لأنها اطّلعت على ملفاته الطبية أثناء إعداد الوصية.\n\nأي الأدلة أشارت إليها؟\nالحديث المتوتر الذي جرى بينها وبين مراد في الممر الخلفي كان اللحظة التي أدركت فيها خطته، وعلبة الدواء الفارغة أكثر من المتوقع كانت من نصيبها.\n\nلماذا بدا الجميع مريبين؟\nطارق كان يخفي عمولات سرية من الموردين. هند فتحت زجاجة مبكرًا خرقًا للتعليمات. د. كريم كان يخفي مرض مراد الحقيقي بناءً على طلبه. نبيل كان يخطط للاستحواذ القسري على حصة مراد. ريما جاءت دون دعوة أملًا في وصية تشملها. كل واحد منهم كان يحمي سرًا شخصيًا لا علاقة له بجريمة القتل.",
+            new InvestigationRound[]{
+                new InvestigationRound(1,"الكأس المهجور","شهد أكثر من ضيف أن كأس مراد بقي على طاولة جانبية دون مراقبة لعدة دقائق قبل أن يرفعه للنخب.","","من كان قريبًا من تلك الطاولة في تلك الدقائق؟"),
+                new InvestigationRound(2,"علبة الدواء","عُثر على علبة دواء ضغط فارغة أكثر من المتوقع في حقيبة قريبة من طاولة المشروبات، رغم أن الجرعة اليومية لا تُفرغ العلبة بهذا الشكل.","","من يملك دواء ضغط، ومن كان يعرف مكان الحقيبة؟"),
+                new InvestigationRound(3,"الحديث المتوتر","أكد أحد الحضور أنه رأى مراد يتحدث بتوتر واضح مع شخص ما في الممر الخلفي قبل الحفل بنصف ساعة، دون أن يسمع تفاصيل الحديث.","","من كان في الممر الخلفي في ذلك الوقت؟"),
+                new InvestigationRound(4,"الزجاجة المبكرة","فُتحت إحدى زجاجات الشراب قبل موعد النخب الرسمي بوقت غير معتاد، رغم تعليمات واضحة بعدم فتح أي زجاجة قبل ذلك الموعد.","","لماذا قد تُفتح زجاجة قبل موعدها؟ ومن كان له حق الوصول إليها؟"),
+            },
+            new StoryIntroduction(
+                "في قاعة حفل فخمة أقيمت لتكريم رجل الأعمال «مراد الحلبي» بمناسبة توقيعه وصيته الجديدة، اجتمع أقرب الناس إليه لرفع نخب الاحتفال.",
+                "الجميع يعرف أن الوصية الجديدة ستغيّر الكثير من موازين القوة في العائلة والشركة، والليلة هي الليلة التي سيُعلن فيها التوقيع رسميًا أمام الحضور.",
+                "أثناء رفع النخب، تناول مراد كأسه المعتاد ثم تعثر وسقط أرضًا. أكد الطبيب الحاضر لاحقًا أن هناك ما يشير إلى أنه تعرّض للتسمم قبل أن يصل النخب إلى شفتيه بدقائق قليلة.",
+                "إن لم تُكشف الحقيقة الليلة، فإن التوقيع المؤجل على الوصية سيُنفَّذ تلقائيًا بالنسخة القديمة، وقد يفلت الفاعل من العقاب إلى الأبد.",
+                "بين الكؤوس الفارغة والوجوه المرتبكة، عليكم أن تكتشفوا من في هذه القاعة سمّم الرجل الذي كان يُفترض أن يكافئهم جميعًا الليلة."
+            )));
+
         return stories;
     }
 }
