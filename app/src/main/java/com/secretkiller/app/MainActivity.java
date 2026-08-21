@@ -38,7 +38,6 @@ public final class MainActivity extends Activity {
     private final ArrayList<String> customClues = new ArrayList<>();
     private final ArrayList<InvestigationRound> customInvestigationRounds = new ArrayList<>();
     private String customTitle, customDescription; private int customPlayers, requestedGuilty;
-    private int detectiveActionRound=-1;
 
     @Override public void onCreate(Bundle state) { super.onCreate(state); home(); }
     @Override public void onBackPressed() { if (atHome) exitAppDialog(); else exitStoryDialog(); }
@@ -90,9 +89,9 @@ public final class MainActivity extends Activity {
         view.setMinHeight(dp(56));
         GradientDrawable background = new GradientDrawable();
         background.setColor(primary ? color(R.color.gold) : Color.rgb(40, 34, 24));
-        background.setCornerRadius(dp(12));
+        background.setCornerRadius(dp(14));
         view.setBackground(background);
-        view.setLayoutParams(margins(-1, dp(56), 0, dp(8), 0, dp(8)));
+        view.setLayoutParams(margins(-1, dp(58), 0, dp(8), 0, dp(8)));
         return view;
     }
 
@@ -104,8 +103,8 @@ public final class MainActivity extends Activity {
     private void addTitle(String value) { root.addView(text(value, 29, color(R.color.text_primary), true), margins(-1, -2, 0, 6, 0, 12)); }
     private void addPanel(String value) {
         TextView panel = text(value, 17, color(R.color.text_primary), false);
-        GradientDrawable background = new GradientDrawable(); background.setColor(color(R.color.surface)); background.setCornerRadius(dp(12)); panel.setBackground(background);
-        root.addView(panel, margins(-1, -2, 0, 6, 0, 6));
+        GradientDrawable background = new GradientDrawable(); background.setColor(color(R.color.surface)); background.setCornerRadius(dp(14)); background.setStroke(dp(1), color(R.color.input_stroke)); panel.setBackground(background);
+        root.addView(panel, margins(-1, -2, 0, 7, 0, 7));
     }
     private void navigation() { Button home = button(getString(R.string.home), false); home.setOnClickListener(v -> exitStoryDialog()); root.addView(home, margins(-1, dp(48), 0, 0, 0, 8)); }
 
@@ -131,9 +130,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void storyIntroduction(Story story){atHome=false;base();navigation();addTitle("مقدمة القصة");addPanel(story.introduction.display());Button next=button("إعداد اللاعبين",true);next.setOnClickListener(v->playerSetup(story));root.addView(next);}
+    private void storyIntroduction(Story story){atHome=false;base();navigation();addTitle("القصة: "+name(story.title));addPanel(story.introduction.display());Button next=button("متابعة",true);next.setOnClickListener(v->playerSetup(story));root.addView(next);}
 
-    private EditText field(String hint, boolean multi) { EditText e=new EditText(this);e.setHint(hint);e.setTextColor(color(R.color.text_primary));e.setHintTextColor(color(R.color.text_muted));e.setTextSize(17);e.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);e.setTextLocale(arabic);e.setGravity(Gravity.CENTER);e.setPadding(dp(16),dp(8),dp(16),dp(8));e.setSingleLine(!multi);if(multi)e.setMinLines(3);GradientDrawable bg=new GradientDrawable();bg.setColor(color(R.color.surface_input));bg.setCornerRadius(dp(12));bg.setStroke(dp(1),color(R.color.input_stroke));e.setBackground(bg);root.addView(e,margins(-1,multi?dp(100):dp(52),0,4,0,4));return e; }
+    private EditText field(String hint, boolean multi) { EditText e=new EditText(this);e.setHint(hint);e.setTextColor(color(R.color.text_primary));e.setHintTextColor(color(R.color.text_muted));e.setTextSize(17);e.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);e.setTextLocale(arabic);e.setGravity(multi?Gravity.START|Gravity.TOP:Gravity.CENTER);e.setPadding(dp(16),dp(14),dp(16),dp(14));e.setSingleLine(!multi);if(multi)e.setMinLines(3);GradientDrawable bg=new GradientDrawable();bg.setColor(color(R.color.surface_input));bg.setCornerRadius(dp(14));bg.setStroke(dp(1),color(R.color.input_stroke));e.setBackground(bg);root.addView(e,margins(-1,multi?dp(112):dp(60),0,6,0,6));return e; }
     private boolean missing(EditText... fields){for(EditText e:fields)if(e.getText().toString().trim().isEmpty())return true;return false;}
     private void notice(String message){new AlertDialog.Builder(this).setMessage(message).setPositiveButton("حسنًا",null).show();}
     private void customInfo(){atHome=false;base();navigation();addTitle("١ من ٦ — معلومات القصة");EditText title=field("عنوان القصة",false),description=field("وصف القصة",true),players=field("عدد اللاعبين (4 إلى 12)",false),guilty=field("عدد الشخصيات المذنبة",false);Button next=button("التالي: الشخصيات",true);next.setOnClickListener(v->{if(missing(title,description,players,guilty)){notice("أكمل جميع الحقول المطلوبة.");return;}try{customPlayers=Integer.parseInt(players.getText().toString().trim());requestedGuilty=Integer.parseInt(guilty.getText().toString().trim());}catch(Exception e){notice("أدخل أرقامًا صحيحة.");return;}if(customPlayers<4||customPlayers>12||requestedGuilty<1||requestedGuilty>=customPlayers){notice("عدد اللاعبين من ٤ إلى ١٢، وعدد المذنبين أقل من عدد اللاعبين.");return;}customTitle=title.getText().toString().trim();customDescription=description.getText().toString().trim();customCards.clear();customClues.clear();customInvestigationRounds.clear();customCharacter(0);});root.addView(next);}
@@ -196,10 +195,10 @@ public final class MainActivity extends Activity {
         holder.removeAllViews(); inputs.clear();
         for (int i = 0; i < count; i++) {
             EditText input = new EditText(this); input.setHint(f(R.string.player_hint, i + 1)); input.setText(i < draftNames.size() ? draftNames.get(i) : "");
-            input.setTextColor(color(R.color.text_primary)); input.setHintTextColor(color(R.color.text_muted)); input.setTextSize(18); input.setGravity(Gravity.CENTER); input.setSingleLine(true);
-            input.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL); input.setTextLocale(arabic); input.setPadding(dp(16), 0, dp(16), 0);
-            GradientDrawable bg = new GradientDrawable(); bg.setColor(color(R.color.surface_input)); bg.setCornerRadius(dp(12)); bg.setStroke(dp(1), color(R.color.input_stroke)); input.setBackground(bg);
-            holder.addView(input, margins(-1, dp(52), 0, 4, 0, 4)); inputs.add(input);
+            input.setTextColor(color(R.color.text_primary)); input.setHintTextColor(color(R.color.text_muted)); input.setTextSize(19); input.setGravity(Gravity.CENTER); input.setSingleLine(true);
+            input.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL); input.setTextLocale(arabic); input.setPadding(dp(18), dp(14), dp(18), dp(14));
+            GradientDrawable bg = new GradientDrawable(); bg.setColor(color(R.color.surface_input)); bg.setCornerRadius(dp(14)); bg.setStroke(dp(1), color(R.color.input_stroke)); input.setBackground(bg);
+            holder.addView(input, margins(-1, dp(64), 0, 6, 0, 6)); inputs.add(input);
         }
     }
 
@@ -209,7 +208,6 @@ public final class MainActivity extends Activity {
         root.addView(text(name(c.name) + " — " + c.profession, 24, player.guilty ? color(R.color.red) : color(R.color.green), true));
         addPanel("هويتك العلنية\n\n" + c.publicIdentity);
         addPanel(f(R.string.your_knowledge, c.knowledge));
-        if (player.detective) addPanel("دور إضافي: أنت المحقق. لديك إجراء تحقيق واحد في كل جولة.");
         Button next = button(index < game.players.size() - 1 ? getString(R.string.hide_and_pass) : getString(R.string.start_case), true); next.setOnClickListener(v -> { if (index < game.players.size() - 1) rolePass(index + 1); else freeDiscussion(); }); root.addView(next);
     }
     /** Hub screen between private reveal and voting. Players choose for themselves whether to
@@ -219,12 +217,13 @@ public final class MainActivity extends Activity {
      * the earlier forced round-by-round flow used; only the UI flow changed, not the data. */
     private void freeDiscussion() {
         atHome = false; base(); navigation();
-        addTitle("🗣️ نقاش حر");
+        addTitle("وقت النقاش");
+        addPanel(name(game.story.title) + "\n\n" + game.story.introduction.incident);
         boolean moreEvidence = !game.investigationFinished();
         addPanel(moreEvidence
-            ? "ناقشوا ما تعرفونه حتى الآن. يمكنكم كشف دليل جديد في أي وقت، أو الانتقال للتصويت مباشرة."
+            ? "ناقشوا ما تعرفونه حتى الآن. يمكنكم عرض دليل جديد في أي وقت، أو الانتقال للتصويت مباشرة."
             : "لا مزيد من الأدلة المتاحة. ناقشوا ما توصلتم إليه، ثم انتقلوا للتصويت متى شئتم.");
-        if (moreEvidence) { Button evidence = button("🔍 اعرض دليلاً", false); evidence.setOnClickListener(v -> evidenceReveal()); root.addView(evidence); }
+        if (moreEvidence) { Button evidence = button("🔍 عرض الأدلة", false); evidence.setOnClickListener(v -> evidenceReveal()); root.addView(evidence); }
         Button vote = button("الانتقال إلى التصويت", true); vote.setOnClickListener(v -> startRound()); root.addView(vote);
     }
     /** Reveals one piece of public evidence (never the private character data), then returns
@@ -243,16 +242,26 @@ public final class MainActivity extends Activity {
         root.addView(back);
     }
     private void startRound() { Clue clue = game.startNextRound(); atHome = false; base(); navigation(); addTitle(f(R.string.round, game.round)); addPanel(f(R.string.discussion, clue.text)); Button vote = button(getString(R.string.start_voting), true); vote.setOnClickListener(v -> beginVote()); root.addView(vote); }
-    private void investigation(){Player detective=game.detective();if(detective==null){notice("لا يوجد محقق نشط في هذه الجولة.");return;}if(detectiveActionRound==game.round){notice("استخدم المحقق إجراءه لهذه الجولة بالفعل.");return;}atHome=false;base();navigation();addTitle("مرحلة التحقيق");addPanel("مرر الهاتف إلى: "+name(detective.name)+"\n\nاختر إجراء تحقيق واحدًا.");for(InvestigationData.Action action:game.story.investigation.actions){Button b=button(action.label,false);b.setOnClickListener(v->investigationResult(action));root.addView(b);}}
-    private void investigationResult(InvestigationData.Action action){detectiveActionRound=game.round;game.investigationActionsUsed.add(action.id);atHome=false;base();navigation();addTitle("نتيجة تحقيق خاصة");addPanel(action.result);for(String info:game.story.investigation.privateInformation)addPanel("معلومة خاصة\n\n"+info);String conditional=game.conditionalClueFor(action.id);if(!conditional.isEmpty())addPanel(conditional);Button back=button("العودة إلى الجولة",true);back.setOnClickListener(v->showCurrentRound());root.addView(back);}
-    private void showCurrentRound(){atHome=false;base();navigation();addTitle(f(R.string.round,game.round));addPanel("عاد المحقق إلى النقاش. يمكنكم الآن التصويت.");Button vote=button(getString(R.string.start_voting),true);vote.setOnClickListener(v->beginVote());root.addView(vote);}
     private void beginVote() { votes.clear(); voteTurn = 0; voteNext(); }
     private void voteNext() {
         atHome = false; base(); navigation(); addTitle(getString(R.string.voting));
         while (voteTurn < game.players.size() && game.players.get(voteTurn).eliminated) voteTurn++;
         if (voteTurn >= game.players.size()) { resolveVotes(); return; }
         Player voter = game.players.get(voteTurn); addPanel(f(R.string.voter_prompt, name(voter.name)));
-        for (Player target : game.activePlayers()) if (target != voter) { Button vote = button(f(R.string.vote_target, name(target.name)), false); final int id = target.id; vote.setOnClickListener(v -> { votes.put(voter.id, id); voteTurn++; voteNext(); }); root.addView(vote); }
+        for (Player target : game.activePlayers()) if (target != voter) { Button vote = button(f(R.string.vote_target, name(target.name)), false); vote.setOnClickListener(v -> confirmVote(voter, target)); root.addView(vote); }
+    }
+    /** A clear confirm step before a vote is locked in, so a mistap doesn't silently accuse
+     * the wrong person -- the voter sees exactly who they're about to vote against and must
+     * confirm, or go back and pick again. */
+    private void confirmVote(Player voter, Player target) {
+        atHome = false; base(); navigation(); addTitle(getString(R.string.voting));
+        addPanel("أنت على وشك التصويت ضد:\n\n" + name(target.name) + "\n\nهل أنت متأكد؟");
+        Button confirm = button("تأكيد التصويت", true);
+        confirm.setOnClickListener(v -> { votes.put(voter.id, target.id); voteTurn++; voteNext(); });
+        root.addView(confirm);
+        Button back = button("تغيير الاختيار", false);
+        back.setOnClickListener(v -> voteNext());
+        root.addView(back);
     }
     private void resolveVotes() {
         HashMap<Integer, Integer> tally = new HashMap<>(); for (int target : votes.values()) tally.put(target, tally.containsKey(target) ? tally.get(target) + 1 : 1);
@@ -263,7 +272,32 @@ public final class MainActivity extends Activity {
     private void showTie() { atHome = false; base(); navigation(); addTitle(getString(R.string.vote_result)); addPanel(getString(R.string.tie)); Button hint = button(getString(R.string.extra_hint), true); hint.setOnClickListener(v -> extraHint()); root.addView(hint); }
     private void extraHint() { atHome = false; base(); navigation(); addTitle(getString(R.string.extra_hint_title)); addPanel(f(R.string.extra_hint_format, game.revealExtraClue().text)); Button round = button(getString(R.string.new_round), true); round.setOnClickListener(v -> startRound()); root.addView(round); }
     private void showVoteResult(Player out, int count) { atHome = false; base(); navigation(); addTitle(getString(R.string.vote_result)); addPanel(out.guilty ? f(R.string.guilty_out, name(out.name), count) : f(R.string.innocent_out, name(out.name), count, game.story.wrongVoteHints[Math.min(game.wrongVotes - 1, game.story.wrongVoteHints.length - 1)])); Button next = button(game.innocentsWin() || game.guiltyWin() ? getString(R.string.reveal_ending) : getString(R.string.next_round), true); next.setOnClickListener(v -> { if (game.innocentsWin() || game.guiltyWin()) reveal(); else startRound(); }); root.addView(next); }
-    private void reveal() { atHome = false; base(); navigation(); addTitle(getString(R.string.truth)); StringBuilder roles = new StringBuilder("🎭 ").append(game.story.title).append("\n\n"); for (Player p : game.players) roles.append(name(p.name)).append(" — ").append(name(p.character.name)).append(" (").append(p.character.profession).append(")").append(p.guilty ? " 🔴" : " 🟢").append("\n"); addPanel(roles.toString()); if(!game.story.solution.isEmpty()) addPanel(game.story.solution); else if(game.story.isCustom()) addPanel(game.story.customEnding); else addPanel(getString(game.innocentsWin() ? R.string.innocents_win : R.string.guilty_win)); Button stories = button(getString(R.string.back_to_stories), true); stories.setOnClickListener(v -> storySelection()); root.addView(stories); }
+    private void reveal() {
+        atHome = false; base(); navigation(); addTitle(getString(R.string.truth));
+        ArrayList<Player> guiltyPlayers = new ArrayList<>(); for (Player p : game.players) if (p.guilty) guiltyPlayers.add(p);
+        StringBuilder guiltyLine = new StringBuilder();
+        for (int i = 0; i < guiltyPlayers.size(); i++) { if (i > 0) guiltyLine.append("، "); guiltyLine.append(name(guiltyPlayers.get(i).character.name)); }
+        addPanel(guiltyLine + "\n\n" + (guiltyPlayers.size() > 1 ? "كانوا المذنبين." : "كان المذنب."));
+        StringBuilder roles = new StringBuilder("🎭 ").append(game.story.title).append("\n\n"); for (Player p : game.players) roles.append(name(p.name)).append(" — ").append(name(p.character.name)).append(" (").append(p.character.profession).append(")").append(p.guilty ? " 🔴" : " 🟢").append("\n"); addPanel(roles.toString());
+        if(!game.story.solution.isEmpty()) addPanel(game.story.solution); else if(game.story.isCustom()) addPanel(game.story.customEnding); else addPanel(getString(game.innocentsWin() ? R.string.innocents_win : R.string.guilty_win));
+        Button results = button("عرض النتائج", true); results.setOnClickListener(v -> results()); root.addView(results);
+    }
+    /** Post-reveal summary using only data GameManager already tracks (win/loss, guilty
+     * character(s), rounds played, wrong votes) -- no new scoring/voting-accuracy mechanic. */
+    private void results() {
+        atHome = false; base(); navigation(); addTitle("النتائج");
+        boolean won = game.innocentsWin();
+        addPanel(won ? "🏆 فاز الأبرياء!" : "☠️ فاز المذنبون!");
+        ArrayList<Player> guiltyPlayers = new ArrayList<>(); for (Player p : game.players) if (p.guilty) guiltyPlayers.add(p);
+        StringBuilder guiltyNames = new StringBuilder(); for (int i = 0; i < guiltyPlayers.size(); i++) { if (i > 0) guiltyNames.append("، "); guiltyNames.append(name(guiltyPlayers.get(i).character.name)); }
+        addPanel("القاتل الحقيقي\n\n" + guiltyNames + "\n\nعدد الجولات: " + game.round + "\nتصويتات خاطئة: " + game.wrongVotes);
+        Button again = button("العب مرة أخرى", true);
+        again.setOnClickListener(v -> { ArrayList<String> names = new ArrayList<>(); for (Player p : game.players) names.add(p.name); Story story = game.story; game = new GameManager(story, names); rolePass(0); });
+        root.addView(again);
+        Button another = button("اختر قصة أخرى", false);
+        another.setOnClickListener(v -> storySelection());
+        root.addView(another);
+    }
     private void how() { atHome = true; base(); addTitle(getString(R.string.how_to_play)); addPanel(getString(R.string.instructions)); Button back = button(getString(R.string.back), true); back.setOnClickListener(v -> home()); root.addView(back); }
     private void exitStoryDialog() { AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.exit_story_title)).setMessage(getString(R.string.exit_story_message)).setNegativeButton(getString(R.string.no), null).setPositiveButton(getString(R.string.yes_exit), (d, w) -> home()).create(); dialog.setOnShowListener(ignored -> configureDialog(dialog)); dialog.show(); }
     private void exitAppDialog() { AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.exit_app_title)).setMessage(getString(R.string.exit_app_message)).setNegativeButton(getString(R.string.no), null).setPositiveButton(getString(R.string.yes_exit), (d, w) -> finish()).create(); dialog.setOnShowListener(ignored -> configureDialog(dialog)); dialog.show(); }

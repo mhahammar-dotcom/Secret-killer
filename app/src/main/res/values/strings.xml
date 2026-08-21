@@ -18,15 +18,13 @@
     <string name="pass_phone">مرر الهاتف إلى: %1$s\n\nلا تسمح لأي لاعب آخر برؤية الشاشة.</string>
     <string name="reveal_my_role">اكشف دوري</string>
     <string name="secret_role">الدور السري</string>
-    <string name="your_secret">سرك\n\n%1$s</string>
     <string name="your_knowledge">ما تعرفه\n\n%1$s</string>
-    <string name="your_statement">جملتك\n\n«%1$s»</string>
     <string name="hide_and_pass">إخفاء وتمرير الهاتف</string>
     <string name="start_case">ابدأ القضية</string>
     <string name="round">الجولة %1$d</string>
-    <string name="discussion">🕵️ مرحلة النقاش\n\nاقرؤوا جملكم، اسألوا بعضكم، ثم راجعوا الدليل التالي:\n\n%1$s</string>
+    <string name="discussion">🕵️ مرحلة التصويت القادمة\n\nراجعوا معرفتكم والأدلة المتاحة، ثم اطّلعوا على هذا الدليل:\n\n%1$s</string>
     <string name="start_voting">ابدأ التصويت</string>
-    <string name="voting">التصويت</string>
+    <string name="voting">حان وقت التصويت</string>
     <string name="voter_prompt">دور التصويت: %1$s\n\nاختر الشخص الذي تريد التصويت ضده.</string>
     <string name="vote_target">○  %1$s</string>
     <string name="vote_result">نتيجة التصويت</string>
@@ -42,8 +40,7 @@
     <string name="truth">الحقيقة</string>
     <string name="innocents_win">🏆 الأبرياء يفوزون! تم كشف المذنبين قبل أن يسيطروا على القضية.</string>
     <string name="guilty_win">☠️ المذنبون يفوزون! أصبح عددهم أو نفوذهم كافيًا للسيطرة على القضية.</string>
-    <string name="back_to_stories">العودة للقصص</string>
-    <string name="instructions">١. اختاروا قصة وعدد اللاعبين.\n\n٢. أدخلوا الأسماء.\n\n٣. مرروا الهاتف لكل لاعب ليعرف دوره وسره.\n\n٤. ناقشوا الأدلة والجمل.\n\n٥. يصوّت كل لاعب سرًا على شخص واحد.\n\n٦. تستمر الجولات حتى يفوز الأبرياء أو المذنبون.</string>
+    <string name="instructions">١. اختاروا قصة وعدد اللاعبين.\n\n٢. أدخلوا الأسماء.\n\n٣. مرروا الهاتف لكل لاعب ليعرف شخصيته وما تعرفه.\n\n٤. ناقشوا بحرية واعرضوا الأدلة متى شئتم.\n\n٥. يصوّت كل لاعب سرًا على شخص واحد.\n\n٦. تستمر الجولات حتى يفوز الأبرياء أو المذنبون.</string>
     <string name="back">العودة</string>
     <string name="exit_story_title">الخروج من القصة</string>
     <string name="exit_story_message">هل أنت متأكد أنك تريد الخروج من القصة والعودة إلى الصفحة الرئيسية؟\n\nسيتم فقدان تقدم القضية الحالية.</string>
