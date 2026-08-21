@@ -7,9 +7,12 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 /** Local-only persistence boundary; it can later be replaced by import/export or sharing.
- * Reads both the current character/investigation schema and older ones, so stories saved
- * before those features existed keep loading and playing (an old story with no investigation
- * rounds simply skips straight to voting — see GameManager.currentInvestigationRound). */
+ * Reads the current character/investigation schema (name, profession, publicIdentity,
+ * knowledge, guilty -- no secret, no objective) as well as older ones, so stories saved
+ * before this redesign keep loading and playing. Older data may still contain "secret" or
+ * "objective" values on disk; those are safely ignored on load rather than crashing, and
+ * never re-written on save. An old story with no investigation rounds simply skips straight
+ * to voting (see GameManager.currentInvestigationRound). */
 public final class CustomStoryStore {
     private static final String PREFS="custom_stories", KEY="stories";
     private CustomStoryStore() {}
@@ -24,12 +27,15 @@ public final class CustomStoryStore {
                 Clue[] clueCards=new Clue[clues.length()];
                 for(int j=0;j<chars.length();j++){
                     JSONObject c=chars.getJSONObject(j);
-                    boolean guilty=c.getBoolean("guilty");
-                    String profession=c.has("profession")?c.getString("profession"):c.optString("role","");
-                    String publicIdentity=c.has("publicIdentity")?c.getString("publicIdentity"):("أنت " + profession + ".");
-                    String objective=c.has("objective")?c.getString("objective"):"راقب الآخرين وحافظ على قصتك متماسكة.";
-                    String crimeObjective=c.has("crimeObjective")?c.getString("crimeObjective"):(guilty?c.getString("secret"):"");
-                    cards[j]=new StoryCharacter(c.getString("name"),profession,publicIdentity,c.getString("secret"),c.getString("knowledge"),c.getString("statement"),objective,guilty,crimeObjective);
+                    boolean guilty=c.optBoolean("guilty",false);
+                    String profession=c.has("profession")?c.optString("profession",""):c.optString("role","");
+                    String publicIdentity=c.has("publicIdentity")?c.optString("publicIdentity",""):("أنت " + profession + ".");
+                    // Current schema stores privateKnowledge as "knowledge". Older saves (before
+                    // this redesign) only had "secret" -- migrate that into knowledge rather than
+                    // losing it. Any "objective"/"crimeObjective"/"statement" values still present
+                    // in old data are simply never read: safely ignored, per the redesign.
+                    String knowledge=c.optString("knowledge", c.optString("secret",""));
+                    cards[j]=new StoryCharacter(c.optString("name",""),profession,publicIdentity,knowledge,guilty);
                 }
                 for(int j=0;j<clues.length();j++) clueCards[j]=new Clue(clues.getString(j));
                 InvestigationRound[] rounds;
@@ -38,12 +44,12 @@ public final class CustomStoryStore {
                     rounds=new InvestigationRound[roundsJson.length()];
                     for(int j=0;j<roundsJson.length();j++){
                         JSONObject r=roundsJson.getJSONObject(j);
-                        rounds[j]=new InvestigationRound(r.optInt("roundNumber",j+1),r.getString("title"),r.getString("publicClue"),r.optString("description",""),r.optString("discussionPrompt",""));
+                        rounds[j]=new InvestigationRound(r.optInt("roundNumber",j+1),r.optString("title",""),r.optString("publicClue",""),r.optString("description",""),r.optString("discussionPrompt",""));
                     }
                 } else {
                     rounds=new InvestigationRound[0];
                 }
-                result.add(Story.custom(o.getString("id"),o.getString("title"),o.getString("description"),cards,clueCards,o.getString("ending"),rounds));
+                result.add(Story.custom(o.getString("id"),o.getString("title"),o.getString("description"),cards,clueCards,o.optString("ending",""),rounds));
             }
         } catch(Exception ignored) {}
         return result;
@@ -58,8 +64,7 @@ public final class CustomStoryStore {
                 for(StoryCharacter c:s.customCharacters){
                     JSONObject x=new JSONObject();
                     x.put("name",c.name);x.put("profession",c.profession);x.put("publicIdentity",c.publicIdentity);
-                    x.put("secret",c.secret);x.put("knowledge",c.knowledge);x.put("statement",c.statement);
-                    x.put("objective",c.objective);x.put("guilty",c.guilty);x.put("crimeObjective",c.crimeObjective);
+                    x.put("knowledge",c.knowledge);x.put("guilty",c.guilty);
                     chars.put(x);
                 }
                 for(Clue c:s.clues)clues.put(c.text);

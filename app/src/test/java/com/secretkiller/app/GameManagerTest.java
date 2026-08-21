@@ -20,27 +20,32 @@ public class GameManagerTest {
         assertEquals(3, guiltyCount(dreams.charactersFor(12, random)));
     }
 
-    @Test public void everyCharacterHasABelievableIdentitySeparateFromAlignment() {
+    @Test public void everyCharacterHasABelievableIdentityWithPrivateKnowledgeAndNoSecretOrObjective() {
+        // Applies to every story now -- the 12 original built-in stories and gala_toast were
+        // all migrated off secret/objective/statement/crimeObjective in this pass.
         for (Story story : Story.catalog()) {
             for (StoryCharacter c : story.charactersFor(story.maxPlayers, new Random(2))) {
-                assertNotNull(c.name); assertFalse(c.name.isEmpty());
-                assertNotNull(c.profession); assertFalse(c.profession.isEmpty());
-                assertNotNull(c.publicIdentity); assertFalse(c.publicIdentity.isEmpty());
-                assertNotNull(c.secret); assertFalse(c.secret.isEmpty());
-                assertNotNull(c.knowledge); assertFalse(c.knowledge.isEmpty());
+                assertFalse(story.id + "/" + c.name, c.name.isEmpty());
+                assertFalse(story.id + "/" + c.name, c.profession.isEmpty());
+                assertFalse(story.id + "/" + c.name, c.publicIdentity.isEmpty());
+                assertFalse(story.id + "/" + c.name + ": knowledge should not be empty", c.knowledge.isEmpty());
+                assertTrue(story.id + "/" + c.name + ": secret should be empty", c.secret.isEmpty());
+                assertTrue(story.id + "/" + c.name + ": objective should be empty", c.objective.isEmpty());
+                assertTrue(story.id + "/" + c.name + ": statement should be empty", c.statement.isEmpty());
+                assertTrue(story.id + "/" + c.name + ": crimeObjective should be empty", c.crimeObjective.isEmpty());
             }
         }
     }
 
-    @Test public void legacyStoriesStillCarryTheirOriginalObjectiveAndCrimeObjective() {
-        // The 11 original pool-based stories (everything except the gold-standard one) were
-        // never rewritten, and must keep behaving exactly as before.
+    @Test public void privateKnowledgeDiffersBetweenCharactersInTheSameStory() {
+        // At small-to-moderate player counts every character is unique; only at very high
+        // counts does the (pre-existing, documented) innocent-pool cycling kick in and repeat
+        // a character, which is an accepted trade-off, not a content bug.
         for (Story story : Story.catalog()) {
-            if (story.id.equals("gala_toast")) continue;
-            for (StoryCharacter c : story.charactersFor(story.maxPlayers, new Random(3))) {
-                assertFalse(story.id + "/" + c.name, c.objective.isEmpty());
-                if (c.guilty) assertFalse(story.id + "/" + c.name, c.crimeObjective.isEmpty());
-            }
+            int n = Math.min(story.maxPlayers, story.minPlayers + 2);
+            ArrayList<StoryCharacter> cast = story.charactersFor(n, new Random(6));
+            java.util.HashSet<String> seen = new java.util.HashSet<>();
+            for (StoryCharacter c : cast) assertTrue(story.id + ": duplicate knowledge text for " + c.name, seen.add(c.knowledge));
         }
     }
 
@@ -55,24 +60,44 @@ public class GameManagerTest {
             assertTrue(c.objective.isEmpty());
             assertTrue(c.statement.isEmpty());
             assertTrue(c.crimeObjective.isEmpty());
+            assertTrue(c.secret.isEmpty());
             assertFalse(c.knowledge.isEmpty());
-            assertFalse(c.secret.isEmpty());
             if (c.guilty) guiltyCount++;
         }
         assertEquals(1, guiltyCount);
     }
 
-    @Test public void goldStandardStoryHasAmbiguousEvidenceAndAFullEndingExplanation() {
-        Story gala = findStory("gala_toast");
-        assertTrue(gala.investigationRounds.length >= 3);
-        for (InvestigationRound evidence : gala.investigationRounds) {
-            assertFalse(evidence.title.isEmpty());
-            assertFalse(evidence.publicClue.isEmpty());
-            // Evidence must not name a character directly, per the "ambiguous evidence" rule.
-            for (StoryCharacter c : gala.charactersFor(6, new Random(5))) assertFalse(evidence.publicClue.contains(c.name));
+    @Test public void everyStoryHasAmbiguousEvidenceThatNamesNoCharacter() {
+        for (Story story : Story.catalog()) {
+            ArrayList<StoryCharacter> cast = story.charactersFor(story.maxPlayers, new Random(5));
+            for (InvestigationRound evidence : story.investigationRounds) {
+                assertFalse(evidence.title.isEmpty());
+                assertFalse(evidence.publicClue.isEmpty());
+                for (StoryCharacter c : cast) assertFalse(story.id + ": evidence '" + evidence.title + "' names " + c.name, containsWholeWord(evidence.publicClue, c.name));
+            }
         }
-        assertTrue(gala.isCustom());
-        assertTrue(gala.customEnding.length() > 200);
+    }
+
+    @Test public void everyStoryHasAFullFinalRevealExplanation() {
+        // Pool-based stories carry `solution`; fixed-cast stories carry `customEnding`.
+        // MainActivity.reveal() prefers solution when present, falling back to customEnding.
+        for (Story story : Story.catalog()) {
+            String ending = !story.solution.isEmpty() ? story.solution : story.customEnding;
+            assertNotNull(story.id, ending);
+            assertTrue(story.id + ": final reveal text too short", ending.length() > 200);
+        }
+    }
+
+    private boolean containsWholeWord(String text, String word) {
+        int idx = text.indexOf(word);
+        while (idx != -1) {
+            boolean leftOk = idx == 0 || !Character.isLetter(text.charAt(idx - 1));
+            int end = idx + word.length();
+            boolean rightOk = end >= text.length() || !Character.isLetter(text.charAt(end));
+            if (leftOk && rightOk) return true;
+            idx = text.indexOf(word, idx + 1);
+        }
+        return false;
     }
 
     @Test public void votingIsNeverGatedByHowMuchEvidenceHasBeenRevealed() {
@@ -85,6 +110,16 @@ public class GameManagerTest {
         assertNotNull(clue);
         for (Player p : game.players) if (p.guilty) game.eliminate(p.id);
         assertTrue(game.innocentsWin());
+    }
+
+    @Test public void allPlayerCountsFourToTwelveProduceAValidCast() {
+        for (Story story : Story.catalog()) {
+            if (story.isCustom()) continue; // fixed-cast stories only support their own exact size
+            for (int n = 4; n <= 12; n++) {
+                ArrayList<StoryCharacter> cast = story.charactersFor(n, new Random(n));
+                assertEquals(story.id + " @" + n, n, cast.size());
+            }
+        }
     }
 
     private Story findStory(String id) {
